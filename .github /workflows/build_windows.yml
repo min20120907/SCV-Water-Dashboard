@@ -1,0 +1,48 @@
+# 這個工作流程的名稱
+name: Build Flutter Windows
+
+# 觸發條件：當推送到 "main" 分支時
+on:
+  push:
+    branches: [ "main" ]
+  # 也允許你手動觸發
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    # 我們指定要跑在最新的 Windows 伺服器上
+    runs-on: windows-latest
+
+    steps:
+      # 步驟 1: 把你的程式碼抓下來
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 步驟 2: 設定 Flutter 環境
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable' # 使用穩定版的 Flutter
+
+      # 步驟 3: 執行 flutter pub get
+      - name: Install dependencies
+        run: flutter pub get
+        # ⬇️ ⬇️ ⬇️ ADD THIS NEW STEP ⬇️ ⬇️ ⬇️
+      # 步驟 3.5: 建立 Windows 專案檔 (如果不存在)
+      - name: Create Windows project files
+        run: flutter create --platforms=windows .
+      # ⬆️ ⬆️ ⬆️ ADD THIS NEW STEP ⬆️ ⬆️ ⬆️
+
+      # 步驟 4: 執行 build windows (這就是你本地不能跑的指令)
+      - name: Build Windows
+        run: flutter build windows
+
+      # 步驟 5: 把 build 好的 Release 資料夾打包
+      # 這會把 .exe 和 .dll 都包起來
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # 打包後的檔案名稱
+          name: windows-build
+          # 要打包的資料夾路徑
+          path: build/windows/x64/runner/Release/
