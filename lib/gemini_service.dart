@@ -1,4 +1,5 @@
 // lib/gemini_service.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
@@ -6,13 +7,12 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 /// 它在啟動時會載入 "知識庫" (systemInstruction)。
 class GeminiService {
   late final GenerativeModel _model;
+  late final GenerativeModel _schemaModel;
+  final String _apiKey;
 
-  GeminiService() {
+  GeminiService() : _apiKey = dotenv.env['GEMINI_API_KEY']!.trim() {
     // 1. 從 .env 讀取 API 金鑰
-    final apiKey = dotenv.env['GEMINI_API_KEY'];
-    if (apiKey == null) {
-      throw Exception('GEMINI_API_KEY not found in .env file');
-    }
+    final apiKey = _apiKey;
 
     // 2. 這是您的「完整版知識庫」
     // (來自您 PDF 的 9 個情境)
@@ -68,8 +68,8 @@ class GeminiService {
 
     // 3. 建立 Gemini Bot (模型)
     _model = GenerativeModel(
-      // 使用 Flash 模型，速度快且免費/便宜
-      model: 'gemini-2.5-pro',
+      // 主要問答改用 1.5-pro，避開新專案可能的 2.x 配額限制
+      model: 'gemini-1.5-pro',
       apiKey: apiKey,
       generationConfig: GenerationConfig(temperature: 0.5),
 
@@ -82,6 +82,32 @@ class GeminiService {
       ],
 
       systemInstruction: systemInstruction, // <-- 注入您的「完整版知識庫」
+    );
+
+    // 4. 規格解析專用模型 (JSON 模式)
+    _schemaModel = GenerativeModel(
+      // Schema 解析用 1.5-flash，成本低且通常可用性更穩定
+      model: 'gemini-1.5-flash',
+      apiKey: _apiKey,
+      generationConfig: GenerationConfig(responseMimeType: 'application/json'),
+      systemInstruction: Content.system("""
+        You are an IoT Sensor Expert. Convert the user's sensor description or manual into a JSON Schema.
+        Output MUST be a valid JSON object with this structure:
+        {
+          "type_id": "DEVICE_TYPE_NAME",
+          "fields": [
+            {
+              "key": "internal_variable_name",
+              "label": "Human Readable Label",
+              "unit": "Unit (e.g. mL/s, mg/L)",
+              "data_type": "double or int",
+              "min_threshold": null,
+              "max_threshold": null
+            }
+          ]
+        }
+        If the user mentions 'SCV Emulator', always include keys: 'kitchen_flow', 'shower_flow', 'bathtub_flow', 'toilet_flow'.
+      """),
     );
   }
 
@@ -110,8 +136,20 @@ class GeminiService {
       return text;
     } catch (e) {
       // 處理 API 錯誤
-      print("Gemini API Error: $e");
+      debugPrint("Gemini API Error: $e");
       return "AI 助理連線失敗: $e";
+    }
+  }
+
+  Future<String> identifySensorSchema(String manualText) async {
+    try {
+      final response = await _schemaModel.generateContent([
+        Content.text("Sensor Description:\n$manualText"),
+      ]);
+      return response.text ?? "{}";
+    } catch (e) {
+      debugPrint("Schema Generation Error: $e");
+      return '{"error": "$e"}';
     }
   }
 }
