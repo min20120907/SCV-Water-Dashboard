@@ -126,7 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'SCV 智慧水資源監控',
       '場域管理',
       '連線設定',
-      'Post-analysis GPT',
+      '場域 Post-AI',
       'Auto Trigger 設定',
       '手動輸入',
     ];
@@ -177,7 +177,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           NavigationDestination(icon: Icon(Icons.dashboard), label: '儀表板'),
           NavigationDestination(icon: Icon(Icons.domain), label: '場域'),
           NavigationDestination(icon: Icon(Icons.cable), label: '連線'),
-          NavigationDestination(icon: Icon(Icons.psychology), label: 'Post-AI'),
+          NavigationDestination(icon: Icon(Icons.psychology), label: '場域AI'),
           NavigationDestination(icon: Icon(Icons.tune), label: 'Auto'),
           NavigationDestination(icon: Icon(Icons.edit_note), label: '手動'),
         ],
@@ -186,8 +186,109 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-class DevicesDashboardTab extends StatelessWidget {
+class DevicesDashboardTab extends StatefulWidget {
   const DevicesDashboardTab({super.key});
+
+  @override
+  State<DevicesDashboardTab> createState() => _DevicesDashboardTabState();
+}
+
+class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
+  String _sortBy = 'abnormal';
+
+  Future<void> _deleteDevice(String sensorDocId, String deviceId) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('刪除裝置'),
+        content: Text('確定刪除裝置 $deviceId？\n（僅刪除 sensors 文件）'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await FirebaseFirestore.instance.collection('sensors').doc(sensorDocId).delete();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已刪除裝置 $deviceId')),
+    );
+  }
+
+  Future<void> _clearDeviceSite(String sensorDocId) async {
+    await FirebaseFirestore.instance.collection('sensors').doc(sensorDocId).set({
+      'site_id': null,
+      'site_name': null,
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> _changeDeviceSite(
+    String sensorDocId,
+    String currentSiteId,
+  ) async {
+    final sites = await FirebaseFirestore.instance
+        .collection('sites')
+        .orderBy('created_at', descending: true)
+        .get();
+    if (!mounted) return;
+    String? selected = currentSiteId.isEmpty ? null : currentSiteId;
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setLocal) => AlertDialog(
+            title: const Text('更改場域'),
+            content: DropdownButtonFormField<String>(
+              initialValue: selected,
+              items: sites.docs.map((doc) {
+                final data = doc.data();
+                final id = data['id']?.toString() ?? doc.id;
+                final name = data['name']?.toString() ?? id;
+                return DropdownMenuItem<String>(
+                  value: id,
+                  child: Text('$name ($id)'),
+                );
+              }).toList(),
+              onChanged: (v) => setLocal(() => selected = v),
+              decoration: const InputDecoration(
+                labelText: '選擇場域',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, selected),
+                child: const Text('儲存'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (chosen == null) return;
+    final siteData = sites.docs
+        .map((d) => d.data())
+        .cast<Map<String, dynamic>>()
+        .firstWhere(
+          (d) => (d['id']?.toString() ?? '') == chosen,
+          orElse: () => <String, dynamic>{},
+        );
+    await FirebaseFirestore.instance.collection('sensors').doc(sensorDocId).set({
+      'site_id': chosen,
+      'site_name': siteData['name']?.toString(),
+    }, SetOptions(merge: true));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -235,6 +336,7 @@ class DevicesDashboardTab extends StatelessWidget {
               final abnormal = _isDeviceAbnormal(schema, latest);
               final total = _deviceTotalFlow(schema, latest);
               return {
+                'docId': doc.id,
                 'raw': deviceData,
                 'latest': latest,
                 'abnormal': abnormal,
@@ -242,34 +344,82 @@ class DevicesDashboardTab extends StatelessWidget {
               };
             }).toList();
 
-            enriched.sort((a, b) {
-              final abnormalCmp =
-                  ((b['abnormal'] as bool) ? 1 : 0) -
-                  ((a['abnormal'] as bool) ? 1 : 0);
-              if (abnormalCmp != 0) return abnormalCmp;
-              return (b['total'] as double).compareTo(a['total'] as double);
-            });
+            if (_sortBy == 'place_asc') {
+              enriched.sort((a, b) => ((a['raw'] as Map<String, dynamic>)['place']
+                      ?.toString() ??
+                  '').compareTo(
+                ((b['raw'] as Map<String, dynamic>)['place']?.toString() ?? ''),
+              ));
+            } else if (_sortBy == 'site_asc') {
+              enriched.sort((a, b) => ((a['raw'] as Map<String, dynamic>)['site_name']
+                      ?.toString() ??
+                  '').compareTo(
+                ((b['raw'] as Map<String, dynamic>)['site_name']?.toString() ?? ''),
+              ));
+            } else {
+              enriched.sort((a, b) {
+                final abnormalCmp =
+                    ((b['abnormal'] as bool) ? 1 : 0) -
+                    ((a['abnormal'] as bool) ? 1 : 0);
+                if (abnormalCmp != 0) return abnormalCmp;
+                return (b['total'] as double).compareTo(a['total'] as double);
+              });
+            }
 
-            return ListView.builder(
-              padding: const EdgeInsets.all(8),
-              itemCount: enriched.length,
-              itemBuilder: (context, index) {
-                final raw = enriched[index]['raw'] as Map<String, dynamic>;
-                final latest =
-                    enriched[index]['latest'] as Map<String, dynamic>;
-                final abnormal = enriched[index]['abnormal'] as bool;
-                return SensorCard(
-                  deviceId: raw['id'],
-                  siteName: raw['site_name']?.toString(),
-                  place: raw['place'] ?? '未命名區域',
-                  schema: raw['schema'] ?? {},
-                  connectionProfile:
-                      (raw['connection_profile'] as Map?)
-                          ?.cast<String, dynamic>(),
-                  latestData: latest,
-                  isAbnormal: abnormal,
-                );
-              },
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _sortBy,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'abnormal',
+                        child: Text('排序：異常優先'),
+                      ),
+                      DropdownMenuItem(value: 'place_asc', child: Text('排序：位置 A-Z')),
+                      DropdownMenuItem(value: 'site_asc', child: Text('排序：場域 A-Z')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() => _sortBy = v);
+                    },
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: enriched.length,
+                    itemBuilder: (context, index) {
+                      final docId = enriched[index]['docId'] as String;
+                      final raw = enriched[index]['raw'] as Map<String, dynamic>;
+                      final latest =
+                          enriched[index]['latest'] as Map<String, dynamic>;
+                      final abnormal = enriched[index]['abnormal'] as bool;
+                      final deviceId = raw['id']?.toString() ?? docId;
+                      final currentSiteId = raw['site_id']?.toString() ?? '';
+                      return SensorCard(
+                        deviceId: deviceId,
+                        siteName: raw['site_name']?.toString(),
+                        place: raw['place'] ?? '未命名區域',
+                        schema: raw['schema'] ?? {},
+                        connectionProfile:
+                            (raw['connection_profile'] as Map?)
+                                ?.cast<String, dynamic>(),
+                        latestData: latest,
+                        isAbnormal: abnormal,
+                        onChangeSite: () => _changeDeviceSite(docId, currentSiteId),
+                        onClearSite: () => _clearDeviceSite(docId),
+                        onDeleteDevice: () => _deleteDevice(docId, deviceId),
+                      );
+                    },
+                  ),
+                ),
+              ],
             );
           },
         );
@@ -294,9 +444,10 @@ class PostAnalysisTab extends StatefulWidget {
 
 class _PostAnalysisTabState extends State<PostAnalysisTab> {
   final _gemini = GeminiService();
-  String? _selectedDeviceId;
+  String? _selectedSiteId;
+  String? _selectedSiteName;
   final _questionController = TextEditingController(
-    text: '請分析目前是否有異常用水，並給出節水建議。',
+    text: '請分析這個場域目前是否有異常用水，並給出節水建議。',
   );
   Timer? _autoTimer;
   String _result = '尚未分析';
@@ -327,39 +478,61 @@ class _PostAnalysisTabState extends State<PostAnalysisTab> {
   }
 
   Future<void> _runAnalysis({bool autoTriggered = false}) async {
-    final deviceId = _selectedDeviceId;
-    if (deviceId == null || deviceId.isEmpty) {
+    final siteId = _selectedSiteId;
+    if (siteId == null || siteId.isEmpty) {
       if (!autoTriggered && mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('請先輸入裝置 ID')));
+        ).showSnackBar(const SnackBar(content: Text('請先選擇場域')));
       }
       return;
     }
 
     setState(() => _loading = true);
     try {
-      final query = await FirebaseFirestore.instance
-          .collection('readings')
-          .doc(deviceId)
-          .collection('stream')
-          .orderBy('timestamp', descending: true)
-          .limit(30)
+      final sensorQuery = await FirebaseFirestore.instance
+          .collection('sensors')
+          .where('site_id', isEqualTo: siteId)
           .get();
 
-      if (query.docs.isEmpty) {
-        setState(() => _result = '此裝置尚無資料可分析。');
+      if (sensorQuery.docs.isEmpty) {
+        setState(() => _result = '此場域目前沒有裝置可分析。');
         return;
       }
 
-      final summary = query.docs.map((doc) {
-        final data = doc.data();
-        final ts = data['timestamp'];
-        final map = Map<String, dynamic>.from(data)..remove('timestamp');
-        return '${ts ?? 'no_ts'} ${jsonEncode(map)}';
-      }).join('\n');
+      final summaryLines = <String>[];
+      for (final sensorDoc in sensorQuery.docs) {
+        final sensor = sensorDoc.data();
+        final deviceId = sensor['id']?.toString() ?? sensorDoc.id;
+        final place = sensor['place']?.toString() ?? '未命名區域';
+        final query = await FirebaseFirestore.instance
+            .collection('readings')
+            .doc(deviceId)
+            .collection('stream')
+            .orderBy('timestamp', descending: true)
+            .limit(8)
+            .get();
+        if (query.docs.isEmpty) {
+          summaryLines.add('[$place/$deviceId] no_data');
+          continue;
+        }
+        for (final doc in query.docs) {
+          final data = doc.data();
+          final ts = data['timestamp'];
+          final map = Map<String, dynamic>.from(data)..remove('timestamp');
+          summaryLines.add('[$place/$deviceId] ${ts ?? 'no_ts'} ${jsonEncode(map)}');
+        }
+      }
 
-      final answer = await _gemini.ask(_questionController.text.trim(), summary);
+      if (summaryLines.isEmpty) {
+        setState(() => _result = '此場域裝置尚無資料可分析。');
+        return;
+      }
+
+      final summary = summaryLines.join('\n');
+      final prefixedQuestion =
+          '場域：${_selectedSiteName ?? siteId}\n${_questionController.text.trim()}';
+      final answer = await _gemini.ask(prefixedQuestion, summary);
       setState(() => _result = answer);
     } catch (e) {
       setState(() => _result = '分析失敗: $e');
@@ -383,10 +556,53 @@ class _PostAnalysisTabState extends State<PostAnalysisTab> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          DeviceSelectorField(
-            selectedId: _selectedDeviceId,
-            label: '選擇要分析的裝置',
-            onChanged: (value) => setState(() => _selectedDeviceId = value),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('sites')
+                .orderBy('created_at', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const LinearProgressIndicator();
+              }
+              final docs = snapshot.data!.docs;
+              final items = docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final id = data['id']?.toString() ?? doc.id;
+                final name = data['name']?.toString() ?? id;
+                return DropdownMenuItem<String>(
+                  value: id,
+                  child: Text('$name ($id)'),
+                );
+              }).toList();
+              final valid = items.any((i) => i.value == _selectedSiteId)
+                  ? _selectedSiteId
+                  : null;
+
+              return DropdownButtonFormField<String>(
+                key: ValueKey(valid),
+                initialValue: valid,
+                items: items,
+                onChanged: (value) {
+                  String? siteName;
+                  for (final d in docs) {
+                    final data = d.data() as Map<String, dynamic>;
+                    if ((data['id']?.toString() ?? d.id) == value) {
+                      siteName = data['name']?.toString();
+                      break;
+                    }
+                  }
+                  setState(() {
+                    _selectedSiteId = value;
+                    _selectedSiteName = siteName;
+                  });
+                },
+                decoration: const InputDecoration(
+                  labelText: '選擇要分析的場域',
+                  border: OutlineInputBorder(),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 10),
           TextField(
@@ -473,7 +689,7 @@ class AutoTriggerSettingsTab extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         const Text(
-          '說明：啟用後，Post-analysis 分頁會依設定秒數自動讀取最近資料並送給 GPT。',
+          '說明：啟用後，場域 Post-AI 分頁會依設定秒數自動讀取最近資料並送給 GPT。',
         ),
       ],
     );
@@ -592,6 +808,9 @@ class SensorCard extends StatelessWidget {
   final Map<String, dynamic>? connectionProfile;
   final Map<String, dynamic>? latestData;
   final bool isAbnormal;
+  final Future<void> Function()? onChangeSite;
+  final Future<void> Function()? onClearSite;
+  final Future<void> Function()? onDeleteDevice;
   final String place;
 
   const SensorCard({
@@ -602,6 +821,9 @@ class SensorCard extends StatelessWidget {
     this.connectionProfile,
     this.latestData,
     this.isAbnormal = false,
+    this.onChangeSite,
+    this.onClearSite,
+    this.onDeleteDevice,
     required this.place,
   });
 
@@ -674,6 +896,33 @@ class SensorCard extends StatelessWidget {
                           visualDensity: VisualDensity.compact,
                         ),
                       ),
+                    PopupMenuButton<String>(
+                      tooltip: '裝置操作',
+                      onSelected: (value) async {
+                        if (value == 'change_site' && onChangeSite != null) {
+                          await onChangeSite!.call();
+                        } else if (value == 'clear_site' && onClearSite != null) {
+                          await onClearSite!.call();
+                        } else if (value == 'delete' && onDeleteDevice != null) {
+                          await onDeleteDevice!.call();
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'change_site',
+                          child: Text('更改場域'),
+                        ),
+                        PopupMenuItem(
+                          value: 'clear_site',
+                          child: Text('移出場域'),
+                        ),
+                        PopupMenuDivider(),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text('刪除裝置'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ],
@@ -907,8 +1156,55 @@ class DeviceSelectorField extends StatelessWidget {
   }
 }
 
-class SiteManagementTab extends StatelessWidget {
+class SiteManagementTab extends StatefulWidget {
   const SiteManagementTab({super.key});
+
+  @override
+  State<SiteManagementTab> createState() => _SiteManagementTabState();
+}
+
+class _SiteManagementTabState extends State<SiteManagementTab> {
+  String _sortBy = 'abnormal';
+
+  Future<void> _deleteSite(String siteDocId, String siteId, String siteName) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('刪除場域'),
+        content: Text('確定刪除場域 $siteName ($siteId)？\n會一併清空所屬裝置的場域欄位。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    final sensors = await FirebaseFirestore.instance
+        .collection('sensors')
+        .where('site_id', isEqualTo: siteId)
+        .get();
+    final batch = FirebaseFirestore.instance.batch();
+    for (final doc in sensors.docs) {
+      batch.set(doc.reference, {
+        'site_id': null,
+        'site_name': null,
+      }, SetOptions(merge: true));
+    }
+    batch.delete(FirebaseFirestore.instance.collection('sites').doc(siteDocId));
+    await batch.commit();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已刪除場域 $siteName')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -948,7 +1244,7 @@ class SiteManagementTab extends StatelessWidget {
 
                 final rows = siteDocs.map((doc) {
                   final site = doc.data() as Map<String, dynamic>;
-                  final siteId = site['id']?.toString() ?? '-';
+                  final siteId = site['id']?.toString() ?? doc.id;
                   final siteName = site['name']?.toString() ?? siteId;
                   final description = site['description']?.toString() ?? '';
                   final related = sensorDocs.where((s) {
@@ -970,6 +1266,7 @@ class SiteManagementTab extends StatelessWidget {
                   }
 
                   return {
+                    'docId': doc.id,
                     'id': siteId,
                     'name': siteName,
                     'description': description,
@@ -979,53 +1276,109 @@ class SiteManagementTab extends StatelessWidget {
                   };
                 }).toList();
 
-                rows.sort((a, b) {
-                  final ab = (b['abnormalCount'] as int).compareTo(
-                    a['abnormalCount'] as int,
+                if (_sortBy == 'name_asc') {
+                  rows.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+                } else if (_sortBy == 'devices_desc') {
+                  rows.sort(
+                    (a, b) => (b['deviceCount'] as int).compareTo(a['deviceCount'] as int),
                   );
-                  if (ab != 0) return ab;
-                  return (b['totalFlow'] as double).compareTo(
-                    a['totalFlow'] as double,
-                  );
-                });
+                } else {
+                  rows.sort((a, b) {
+                    final ab = (b['abnormalCount'] as int).compareTo(
+                      a['abnormalCount'] as int,
+                    );
+                    if (ab != 0) return ab;
+                    return (b['totalFlow'] as double).compareTo(
+                      a['totalFlow'] as double,
+                    );
+                  });
+                }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(8),
-                  itemCount: rows.length,
-                  itemBuilder: (context, index) {
-                    final row = rows[index];
-                    final id = row['id'] as String;
-                    final name = row['name'] as String;
-                    final description = row['description'] as String;
-                    final deviceCount = row['deviceCount'] as int;
-                    final abnormal = row['abnormalCount'] as int;
-                    final totalFlow = row['totalFlow'] as double;
-                    return Card(
-                      child: ListTile(
-                        leading: Icon(
-                          abnormal > 0 ? Icons.warning_amber : Icons.domain,
-                          color: abnormal > 0 ? Colors.red : null,
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _sortBy,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'abnormal',
+                            child: Text('排序：異常優先'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'name_asc',
+                            child: Text('排序：名稱 A-Z'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'devices_desc',
+                            child: Text('排序：裝置數量多到少'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setState(() => _sortBy = v);
+                        },
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          isDense: true,
                         ),
-                        title: Text(name),
-                        subtitle: Text(
-                          'ID: $id\n裝置: $deviceCount  異常: $abnormal  總流量: ${totalFlow.toStringAsFixed(1)} mL/s\n$description',
-                        ),
-                        isThreeLine: true,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SiteDetailPage(
-                                siteId: id,
-                                siteName: name,
-                                description: description,
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: rows.length,
+                        itemBuilder: (context, index) {
+                          final row = rows[index];
+                          final docId = row['docId'] as String;
+                          final id = row['id'] as String;
+                          final name = row['name'] as String;
+                          final description = row['description'] as String;
+                          final deviceCount = row['deviceCount'] as int;
+                          final abnormal = row['abnormalCount'] as int;
+                          final totalFlow = row['totalFlow'] as double;
+                          return Card(
+                            child: ListTile(
+                              leading: Icon(
+                                abnormal > 0 ? Icons.warning_amber : Icons.domain,
+                                color: abnormal > 0 ? Colors.red : null,
                               ),
+                              title: Text(name),
+                              subtitle: Text(
+                                'ID: $id\n裝置: $deviceCount  異常: $abnormal  總流量: ${totalFlow.toStringAsFixed(1)} mL/s\n$description',
+                              ),
+                              isThreeLine: true,
+                              trailing: PopupMenuButton<String>(
+                                onSelected: (v) async {
+                                  if (v == 'delete') {
+                                    await _deleteSite(docId, id, name);
+                                  }
+                                },
+                                itemBuilder: (context) => const [
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text('刪除場域'),
+                                  ),
+                                ],
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => SiteDetailPage(
+                                      siteId: id,
+                                      siteName: name,
+                                      description: description,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           );
                         },
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 );
               },
             );
@@ -1054,7 +1407,37 @@ class DeviceHistoryPage extends StatefulWidget {
 
 class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
   late Set<String> _selectedKeys;
-  int _windowHours = 24;
+  int _windowHours = 1;
+
+  String _readableHistoryError(Object error) {
+    if (error is TimeoutException) {
+      return '讀取逾時：資料量較大或網路較慢，請先切 1 小時再試。';
+    }
+    final text = error.toString();
+    if (text.contains('failed-precondition') || text.contains('index')) {
+      return 'Firestore 索引尚未建立，請建立 readings/{device_id}/stream 的 timestamp 查詢索引後重試。';
+    }
+    if (text.contains('permission-denied')) {
+      return '沒有讀取權限，請確認 Firestore Rules。';
+    }
+    return '讀取資料失敗：$text';
+  }
+
+  List<QueryDocumentSnapshot> _downsampleDocs(
+    List<QueryDocumentSnapshot> docs,
+    int maxPoints,
+  ) {
+    if (docs.length <= maxPoints) return docs;
+    final step = (docs.length / maxPoints).ceil();
+    final sampled = <QueryDocumentSnapshot>[];
+    for (int i = 0; i < docs.length; i += step) {
+      sampled.add(docs[i]);
+    }
+    if (sampled.isNotEmpty && sampled.last.id != docs.last.id) {
+      sampled.add(docs.last);
+    }
+    return sampled;
+  }
 
   @override
   void initState() {
@@ -1082,9 +1465,13 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
     final cutoffTs = Timestamp.fromDate(
       DateTime.now().subtract(Duration(hours: _windowHours)),
     );
+    // Keep query size bounded to avoid loading stalls on Flutter Web.
     final queryLimit = _windowHours == 1
-        ? 3000
-        : (_windowHours == 24 ? 60000 : 120000);
+        ? 1800
+        : (_windowHours == 24 ? 3600 : 7200);
+    final maxRenderPoints = _windowHours == 1
+        ? 600
+        : (_windowHours == 24 ? 900 : 1200);
 
     return Scaffold(
       appBar: AppBar(
@@ -1098,12 +1485,27 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
             .where('timestamp', isGreaterThanOrEqualTo: cutoffTs)
             .orderBy('timestamp', descending: true)
             .limit(queryLimit)
-            .snapshots(),
+            .snapshots()
+            .timeout(const Duration(seconds: 12)),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  _readableHistoryError(snapshot.error!),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
           final docs = snapshot.data!.docs.reversed.toList();
+          final isTruncated = snapshot.data!.docs.length >= queryLimit;
+          final renderDocs = _downsampleDocs(docs, maxRenderPoints);
+          final isDownsampled = renderDocs.length < docs.length;
 
           final colorPool = <Color>[
             Colors.blue,
@@ -1118,11 +1520,11 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
           int colorIdx = 0;
           for (final key in _selectedKeys) {
             final spots = <FlSpot>[];
-            for (int i = 0; i < docs.length; i++) {
-              final doc = docs[i];
+            for (int i = 0; i < renderDocs.length; i++) {
+              final doc = renderDocs[i];
               final data = doc.data() as Map<String, dynamic>;
               final val = data[key];
-              if (val is num) {
+              if (val is num && val.toDouble().isFinite) {
                 spots.add(
                   FlSpot(
                     i.toDouble(),
@@ -1266,6 +1668,20 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                   ),
                 ),
               ),
+              if (isTruncated) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '資料量過大，已顯示最近 $queryLimit 筆（建議搭配 1 小時或後續啟用降採樣）。',
+                  style: TextStyle(color: Colors.orange.shade800, fontSize: 12),
+                ),
+              ],
+              if (isDownsampled) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '為了避免卡頓，圖表已自動降採樣顯示（${renderDocs.length}/${docs.length} 點）。',
+                  style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
+                ),
+              ],
               const SizedBox(height: 8),
               SizedBox(
                 height: 320,
@@ -1295,10 +1711,11 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                                           : math.max(1, docs.length / 7)),
                                 getTitlesWidget: (value, meta) {
                                   final idx = value.round();
-                                  if (idx < 0 || idx >= docs.length) {
+                                  if (idx < 0 || idx >= renderDocs.length) {
                                     return const SizedBox.shrink();
                                   }
-                                  final data = docs[idx].data() as Map<String, dynamic>;
+                                  final data =
+                                      renderDocs[idx].data() as Map<String, dynamic>;
                                   final ts = data['timestamp'];
                                   if (ts is! Timestamp) {
                                     return const SizedBox.shrink();
