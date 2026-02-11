@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="SCV 智慧水資源監控"
+        android:label="SCV Water"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         
