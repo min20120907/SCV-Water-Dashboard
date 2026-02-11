@@ -86,8 +86,8 @@ class GeminiService {
 
     // 4. 規格解析專用模型 (JSON 模式)
     _schemaModel = GenerativeModel(
-      // Schema 解析用 1.5-flash，成本低且通常可用性更穩定
-      model: 'gemini-1.5-flash',
+      // 目前專案 API 端點可用的 Schema 模型
+      model: 'gemini-2.0-flash',
       apiKey: _apiKey,
       generationConfig: GenerationConfig(responseMimeType: 'application/json'),
       systemInstruction: Content.system("""
