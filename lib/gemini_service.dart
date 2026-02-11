@@ -13,6 +13,10 @@ class GeminiService {
   GeminiService() : _apiKey = dotenv.env['GEMINI_API_KEY']!.trim() {
     // 1. 從 .env 讀取 API 金鑰
     final apiKey = _apiKey;
+    assert(() {
+      debugPrint("Gemini API Key length: ${apiKey.length}");
+      return true;
+    }());
 
     // 2. 這是您的「完整版知識庫」
     // (來自您 PDF 的 9 個情境)
@@ -68,8 +72,8 @@ class GeminiService {
 
     // 3. 建立 Gemini Bot (模型)
     _model = GenerativeModel(
-      // 主要問答改用 1.5-pro，避開新專案可能的 2.x 配額限制
-      model: 'gemini-1.5-pro',
+      // 全部統一使用 Flash，速度更快、成本更低
+      model: 'gemini-2.5-flash',
       apiKey: apiKey,
       generationConfig: GenerationConfig(temperature: 0.5),
 
@@ -86,8 +90,8 @@ class GeminiService {
 
     // 4. 規格解析專用模型 (JSON 模式)
     _schemaModel = GenerativeModel(
-      // 目前專案 API 端點可用的 Schema 模型
-      model: 'gemini-2.0-flash',
+      // ListModels 顯示可用，改用 2.5-flash 以避開 2.0 配額限制
+      model: 'gemini-2.5-flash',
       apiKey: _apiKey,
       generationConfig: GenerationConfig(responseMimeType: 'application/json'),
       systemInstruction: Content.system("""
@@ -148,8 +152,36 @@ class GeminiService {
       ]);
       return response.text ?? "{}";
     } catch (e) {
-      debugPrint("Schema Generation Error: $e");
-      return '{"error": "$e"}';
+      final errorText = e.toString();
+      debugPrint("Schema Generation Error: $errorText");
+      if (errorText.contains("limit: 0")) {
+        return '{"error": "目前模型配額為 0，請稍後再試或更換 API Key 專案。"}';
+      }
+      return '{"error": "$errorText"}';
+    }
+  }
+
+  Future<String> generateSiteDescription({
+    required String siteName,
+    required String prompt,
+  }) async {
+    try {
+      final response = await _model.generateContent([
+        Content.text(
+          '''
+請用繁體中文，為以下場域產生 2-4 句精簡敘述，內容包含場域用途、常見用水情境、建議監控重點。
+
+場域名稱: $siteName
+使用者補充: $prompt
+''',
+        ),
+      ]);
+      return response.text?.trim().isNotEmpty == true
+          ? response.text!.trim()
+          : '此場域主要用於日常活動，建議優先監控主要用水設備的尖峰時段與異常流量。';
+    } catch (e) {
+      debugPrint("Site Description Error: $e");
+      return '此場域主要用於日常活動，建議優先監控主要用水設備的尖峰時段與異常流量。';
     }
   }
 }
