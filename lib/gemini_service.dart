@@ -1,5 +1,6 @@
 // lib/gemini_service.dart
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
@@ -73,7 +74,7 @@ class GeminiService {
     // 3. 建立 Gemini Bot (模型)
     _model = GenerativeModel(
       // 全部統一使用 Flash，速度更快、成本更低
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite-preview',
       apiKey: apiKey,
       generationConfig: GenerationConfig(temperature: 0.5),
 
@@ -91,7 +92,7 @@ class GeminiService {
     // 4. 規格解析專用模型 (JSON 模式)
     _schemaModel = GenerativeModel(
       // ListModels 顯示可用，改用 2.5-flash 以避開 2.0 配額限制
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.1-flash-lite-preview',
       apiKey: _apiKey,
       generationConfig: GenerationConfig(responseMimeType: 'application/json'),
       systemInstruction: Content.system("""
@@ -113,6 +114,49 @@ class GeminiService {
         If the user mentions 'SCV Emulator', always include keys: 'kitchen_flow', 'shower_flow', 'bathtub_flow', 'toilet_flow'.
       """),
     );
+  }
+
+  Future<String> getOptimizationTips(String dataContext) async {
+    try {
+      final prompt = '''
+請根據提供的用水數據，給出 2-3 條「具體、專業且可執行」的節水優化建議。
+需求：
+1. 必須針對數據中顯示的異常（如：某項流量過高）給出建議。
+2. 建議格式請包含：【標題】與【詳細說明】。
+3. 如果數據正常，則給出預防性的維護建議。
+4. 使用繁體中文。
+''';
+      return await ask(prompt, dataContext);
+    } catch (e) {
+      return "暫時無法產生優化建議：$e";
+    }
+  }
+
+  Future<Map<String, String>> suggestIcon(String fieldKey) async {
+    try {
+      final prompt = '''
+針對感測器欄位名稱 "$fieldKey"，請回傳一個最適合的圖示資訊。
+回傳格式必須為 JSON，包含以下欄位：
+1. "emoji": 一個單一 Emoji 圖示。
+2. "icon_name": 一個適合的 FontAwesome 圖示名稱（例如: "faucet", "shower", "bath", "toilet", "droplet"）。
+3. "description": 該欄位的簡短中文說明（2-4 字）。
+
+範例：
+{"emoji": "🚿", "icon_name": "shower", "description": "浴室淋浴"}
+
+請只回傳 JSON，不要任何其他文字。
+''';
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final text = response.text?.trim() ?? '';
+      final Map<String, dynamic> data = jsonDecode(text);
+      return data.map((key, value) => MapEntry(key, value.toString()));
+    } catch (_) {
+      return {
+        'emoji': '💧',
+        'icon_name': 'droplet',
+        'description': fieldKey,
+      };
+    }
   }
 
   /// 呼叫 Gemini AI 來分析數據並回答問題
@@ -167,14 +211,12 @@ class GeminiService {
   }) async {
     try {
       final response = await _model.generateContent([
-        Content.text(
-          '''
+        Content.text('''
 請用繁體中文，為以下場域產生 2-4 句精簡敘述，內容包含場域用途、常見用水情境、建議監控重點。
 
 場域名稱: $siteName
 使用者補充: $prompt
-''',
-        ),
+'''),
       ]);
       return response.text?.trim().isNotEmpty == true
           ? response.text!.trim()

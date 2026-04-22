@@ -4,7 +4,16 @@ import 'package:flutter/material.dart';
 import 'gemini_service.dart';
 
 class AddSitePage extends StatefulWidget {
-  const AddSitePage({super.key});
+  final String? initialName;
+  final String? initialDescription;
+  final String? initialPrompt;
+
+  const AddSitePage({
+    super.key,
+    this.initialName,
+    this.initialDescription,
+    this.initialPrompt,
+  });
 
   @override
   State<AddSitePage> createState() => _AddSitePageState();
@@ -19,6 +28,21 @@ class _AddSitePageState extends State<AddSitePage> {
 
   bool _generating = false;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialName != null) {
+      _nameController.text = widget.initialName!;
+      _idController.text = widget.initialName!.toLowerCase().replaceAll(' ', '_');
+    }
+    if (widget.initialDescription != null) {
+      _descController.text = widget.initialDescription!;
+    }
+    if (widget.initialPrompt != null) {
+      _promptController.text = widget.initialPrompt!;
+    }
+  }
 
   Future<void> _generateDescription() async {
     final name = _nameController.text.trim();

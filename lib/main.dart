@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'add_device_page.dart';
@@ -16,12 +17,143 @@ import 'add_site_page.dart';
 import 'firebase_options.dart';
 import 'gemini_service.dart';
 
+const _scvPrimary = Color(0xFF2F7BFF);
+const _scvPrimarySoft = Color(0xFFEAF2FF);
+const _scvBg = Color(0xFFF6F8FC);
+const _scvSurface = Colors.white;
+const _scvText = Color(0xFF1F2937);
+const _scvMutedText = Color(0xFF6B7280);
+const _scvBorder = Color(0xFFDCE4F2);
+const _scvDanger = Color(0xFFE05858);
+
+ThemeData _buildScvTheme() {
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: _scvPrimary,
+        brightness: Brightness.light,
+      ).copyWith(
+        primary: _scvPrimary,
+        secondary: const Color(0xFF5EA2FF),
+        surface: _scvSurface,
+        error: _scvDanger,
+      );
+
+  return ThemeData(
+    useMaterial3: true,
+    fontFamily: 'Roboto',
+    brightness: Brightness.light,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: _scvBg,
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Colors.white,
+      foregroundColor: _scvText,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      titleTextStyle: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: _scvText,
+      ),
+    ),
+    cardTheme: CardThemeData(
+      color: _scvSurface,
+      margin: const EdgeInsets.all(0),
+      elevation: 0.5,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: _scvBorder),
+      ),
+    ),
+    dividerTheme: const DividerThemeData(color: _scvBorder),
+    textTheme: const TextTheme(
+      titleLarge: TextStyle(
+        color: _scvText,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.2,
+      ),
+      titleMedium: TextStyle(color: _scvText, fontWeight: FontWeight.w600),
+      bodyMedium: TextStyle(color: _scvText, height: 1.35),
+      bodySmall: TextStyle(color: _scvMutedText),
+      labelLarge: TextStyle(color: _scvText, fontWeight: FontWeight.w600),
+    ),
+    listTileTheme: const ListTileThemeData(
+      iconColor: _scvPrimary,
+      textColor: _scvText,
+      subtitleTextStyle: TextStyle(color: _scvMutedText),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(14)),
+      ),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: _scvSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: Colors.white,
+      indicatorColor: _scvPrimarySoft,
+      height: 72,
+      labelTextStyle: const WidgetStatePropertyAll(
+        TextStyle(color: _scvText, fontWeight: FontWeight.w600),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white,
+      labelStyle: const TextStyle(color: _scvMutedText),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _scvBorder),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _scvBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: _scvPrimary, width: 1.4),
+      ),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _scvPrimary,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: _scvPrimary,
+        foregroundColor: Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _scvText,
+        side: const BorderSide(color: _scvBorder),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: Colors.white,
+      selectedColor: _scvPrimarySoft,
+      side: const BorderSide(color: _scvBorder),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      labelStyle: const TextStyle(color: _scvText),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: _scvText,
+      contentTextStyle: const TextStyle(color: Colors.white),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+  );
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: "assets/key.env");
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const ProviderScope(child: WaterDashboardApp()));
 }
 
@@ -32,10 +164,7 @@ class WaterDashboardApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'SCV Water Dashboard',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
+      theme: _buildScvTheme(),
       home: const DashboardScreen(),
     );
   }
@@ -86,6 +215,23 @@ double _deviceTotalFlow(
   return sum;
 }
 
+int _toEpochMillis(dynamic value) {
+  if (value is Timestamp) return value.millisecondsSinceEpoch;
+  if (value is DateTime) return value.millisecondsSinceEpoch;
+  if (value is num) return value.toInt();
+  return 0;
+}
+
+String _formatNowLabel(DateTime now) {
+  const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+  final y = now.year.toString().padLeft(4, '0');
+  final m = now.month.toString().padLeft(2, '0');
+  final d = now.day.toString().padLeft(2, '0');
+  final hh = now.hour.toString().padLeft(2, '0');
+  final mm = now.minute.toString().padLeft(2, '0');
+  return '星期${weekdays[now.weekday - 1]}，$y/$m/$d $hh:$mm';
+}
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -97,6 +243,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _tabIndex = 0;
   bool _autoTriggerEnabled = false;
   int _autoTriggerSeconds = 15;
+  int _profileSubTab = 0;
 
   void _openAddDevice() {
     Navigator.push(
@@ -108,81 +255,1590 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const DevicesDashboardTab(),
+      const DashboardV2Page(),
       const SiteManagementTab(),
-      const ConnectivityTab(),
       PostAnalysisTab(
         autoTriggerEnabled: _autoTriggerEnabled,
         autoTriggerSeconds: _autoTriggerSeconds,
       ),
-      AutoTriggerSettingsTab(
-        enabled: _autoTriggerEnabled,
-        seconds: _autoTriggerSeconds,
-        onEnabledChanged: (value) => setState(() => _autoTriggerEnabled = value),
-        onSecondsChanged: (value) => setState(() => _autoTriggerSeconds = value),
+      const _AddActionsTab(),
+      _ProfileHubTab(
+        subTab: _profileSubTab,
+        onTabChanged: (idx) => setState(() => _profileSubTab = idx),
+        autoTriggerEnabled: _autoTriggerEnabled,
+        autoTriggerSeconds: _autoTriggerSeconds,
+        onEnabledChanged: (value) =>
+            setState(() => _autoTriggerEnabled = value),
+        onSecondsChanged: (value) =>
+            setState(() => _autoTriggerSeconds = value),
       ),
-      const ManualInputTab(),
     ];
-
     final titles = [
-      'SCV 智慧水資源監控',
-      '場域管理',
-      '連線設定',
-      '場域 Post-AI',
-      'Auto Trigger 設定',
-      '手動輸入',
+      'DASHBOARD',
+      'Choose Template',
+      'Alert & Optimize',
+      'Add',
+      'Profile',
     ];
+    final showDefaultAppBar = _tabIndex != 0;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(titles[_tabIndex]),
-        backgroundColor: Colors.deepPurple.shade100,
-        actions: [
-          if (_tabIndex == 0)
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.add_business_outlined),
-                  tooltip: "新增場域",
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const AddSitePage()),
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  tooltip: "新增裝置 (AI)",
-                  onPressed: _openAddDevice,
-                ),
+      appBar: showDefaultAppBar
+          ? AppBar(
+              title: Text(titles[_tabIndex]),
+              actions: [
+                if (_tabIndex == 1)
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.add_business_outlined),
+                        tooltip: "Add Site",
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AddSitePage(),
+                            ),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        tooltip: "Add Sensor",
+                        onPressed: _openAddDevice,
+                      ),
+                    ],
+                  ),
               ],
+            )
+          : PreferredSize(
+              preferredSize: const Size.fromHeight(74),
+              child: _DashboardTopBar(
+                onNotificationTap: () {
+                  setState(() => _tabIndex = 2);
+                },
+              ),
             ),
-          if (_tabIndex == 1)
-            IconButton(
-              icon: const Icon(Icons.add_business_outlined),
-              tooltip: "新增場域",
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AddSitePage()),
+      body: pages[_tabIndex],
+      bottomNavigationBar: Container(
+        height: 78,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Color(0x1A000000), width: 0.5)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 10,
+              offset: Offset(0, -1),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _BottomTabIcon(
+                icon: Icons.home_filled,
+                active: _tabIndex == 0,
+                onTap: () => setState(() => _tabIndex = 0),
+              ),
+              _BottomTabIcon(
+                icon: Icons.dashboard_outlined,
+                active: _tabIndex == 1,
+                onTap: () => setState(() => _tabIndex = 1),
+              ),
+              _BottomTabIcon(
+                icon: Icons.add_circle_outline,
+                active: _tabIndex == 3,
+                onTap: () => setState(() => _tabIndex = 3),
+                big: true,
+              ),
+              _BottomTabIcon(
+                icon: Icons.notifications_none,
+                active: _tabIndex == 2,
+                onTap: () => setState(() => _tabIndex = 2),
+              ),
+              _BottomTabIcon(
+                icon: Icons.person_outline,
+                active: _tabIndex == 4,
+                onTap: () => setState(() => _tabIndex = 4),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomTabIcon extends StatelessWidget {
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+  final bool big;
+
+  const _BottomTabIcon({
+    required this.icon,
+    required this.active,
+    required this.onTap,
+    this.big = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: SizedBox(
+        width: 72,
+        height: 44,
+        child: Center(
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active ? _scvPrimarySoft : Colors.transparent,
+            ),
+            padding: const EdgeInsets.all(6),
+            child: Icon(
+              icon,
+              size: big ? 27 : 24,
+              color: active ? const Color(0xFF000000) : const Color(0xFF1E1E1E),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardTopBar extends StatelessWidget {
+  final VoidCallback onNotificationTap;
+
+  const _DashboardTopBar({required this.onNotificationTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Container(
+        height: 74,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+        decoration: const BoxDecoration(color: Colors.white),
+        child: Row(
+          children: [
+            Container(
+              width: 53,
+              height: 48,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _scvPrimarySoft,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.water_drop, color: _scvPrimary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const _LiveNowLabel(),
+                  const Text(
+                    'DASHBOARD',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 27,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF000000),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: onNotificationTap,
+              child: Stack(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Icon(
+                      Icons.notifications_none,
+                      color: Color(0xFF1E1E1E),
+                      size: 26,
+                    ),
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF2D6EFF),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AppCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  const AppCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _scvBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 14,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Padding(padding: padding, child: child),
+    );
+  }
+}
+
+class AppSearchBar extends StatelessWidget {
+  final String hintText;
+  final ValueChanged<String>? onChanged;
+
+  const AppSearchBar({super.key, required this.hintText, this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hintText,
+        prefixIcon: const Icon(Icons.search, color: _scvMutedText),
+      ),
+    );
+  }
+}
+
+class DashboardV2Page extends StatelessWidget {
+  const DashboardV2Page({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(15, 10, 15, 16),
+      children: [
+        const _IndustryPills(),
+        const SizedBox(height: 12),
+        const SizedBox(height: 300, child: _DashboardChartFromFirestore()),
+        const SizedBox(height: 20),
+        Text(
+          'Sensor Monitoring - Individual',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontSize: 16),
+        ),
+        const SizedBox(height: 10),
+        const _MiniSensorMonitoringList(),
+      ],
+    );
+  }
+}
+
+class _LiveNowLabel extends StatefulWidget {
+  const _LiveNowLabel();
+
+  @override
+  State<_LiveNowLabel> createState() => _LiveNowLabelState();
+}
+
+class _LiveNowLabelState extends State<_LiveNowLabel> {
+  late Timer _timer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _formatNowLabel(_now),
+      style: const TextStyle(
+        fontFamily: 'Encode Sans Semi Expanded',
+        fontSize: 12,
+        color: Color(0xFF323232),
+      ),
+    );
+  }
+}
+
+class _MiniSensorMonitoringList extends StatelessWidget {
+  const _MiniSensorMonitoringList();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sensors')
+          .limit(6)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) return const AppCard(child: Text('目前沒有感測器資料'));
+
+        return ListView.separated(
+          itemCount: docs.length,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          separatorBuilder: (_, __) => const SizedBox(height: 16),
+          itemBuilder: (context, index) {
+            final sensorDoc = docs[index];
+            final data = sensorDoc.data() as Map<String, dynamic>;
+            final deviceId = data['id']?.toString() ?? sensorDoc.id;
+            final schema = (data['schema'] as Map?)?.cast<String, dynamic>() ?? {};
+            final place = data['place']?.toString() ?? '未命名區域';
+
+            return DashboardGaugeCard(
+              deviceId: deviceId,
+              place: place,
+              schema: schema,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class DashboardGaugeCard extends StatefulWidget {
+  final String deviceId;
+  final String place;
+  final Map<String, dynamic> schema;
+
+  const DashboardGaugeCard({
+    super.key,
+    required this.deviceId,
+    required this.place,
+    required this.schema,
+  });
+
+  @override
+  State<DashboardGaugeCard> createState() => _DashboardGaugeCardState();
+}
+
+class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
+  final GeminiService _gemini = GeminiService();
+  static final Map<String, Map<String, String>> _iconInfoCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIconInfo();
+  }
+
+  Future<void> _loadIconInfo() async {
+    final fields = (widget.schema['fields'] as List? ?? []).whereType<Map>();
+    for (final f in fields) {
+      final key = f['key']?.toString() ?? '';
+      if (!_iconInfoCache.containsKey(key)) {
+        final info = await _gemini.suggestIcon(f['label'] ?? key);
+        if (mounted) {
+          setState(() => _iconInfoCache[key] = info);
+        }
+      }
+    }
+  }
+
+  IconData _getFaIcon(String name) {
+    switch (name.toLowerCase()) {
+      case 'faucet': return FontAwesomeIcons.faucet;
+      case 'shower': return FontAwesomeIcons.shower;
+      case 'bath': return FontAwesomeIcons.bath;
+      case 'toilet': return FontAwesomeIcons.toilet;
+      case 'droplet': return FontAwesomeIcons.droplet;
+      case 'flask': return FontAwesomeIcons.flask;
+      case 'soap': return FontAwesomeIcons.soap;
+      case 'jug-detergent': return FontAwesomeIcons.jugDetergent;
+      case 'fire-burner': return FontAwesomeIcons.fireBurner;
+      case 'blender': return FontAwesomeIcons.blender;
+      case 'utensils': return FontAwesomeIcons.utensils;
+      case 'warehouse': return FontAwesomeIcons.warehouse;
+      case 'industry': return FontAwesomeIcons.industry;
+      case 'plug': return FontAwesomeIcons.plug;
+      case 'gear': return FontAwesomeIcons.gear;
+      case 'bolt': return FontAwesomeIcons.bolt;
+      case 'leaf': return FontAwesomeIcons.leaf;
+      case 'seedling': return FontAwesomeIcons.seedling;
+      case 'car': return FontAwesomeIcons.car;
+      case 'truck': return FontAwesomeIcons.truck;
+      default: return FontAwesomeIcons.droplet;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('readings')
+          .doc(widget.deviceId)
+          .collection('stream')
+          .limit(1)
+          .snapshots(),
+      builder: (context, readingSnap) {
+        // 在記憶體中手動排序
+        final readingDocs = readingSnap.data?.docs ?? [];
+        final sortedDocs = [...readingDocs];
+        sortedDocs.sort((a, b) {
+          final aa = (a.data() as Map<String, dynamic>)['timestamp'];
+          final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+          return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
+        });
+
+        final latest = sortedDocs.isNotEmpty
+            ? sortedDocs.first.data() as Map<String, dynamic>
+            : <String, dynamic>{};
+
+        final fields = (widget.schema['fields'] as List? ?? []).whereType<Map>();
+        final totalVal = _deviceTotalFlow(widget.schema, latest);
+
+        return AppCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.place,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                      ),
+                      Text(widget.deviceId, style: const TextStyle(fontSize: 10, color: _scvMutedText)),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _scvPrimary,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(color: _scvPrimary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4)),
+                      ],
+                    ),
+                    child: Text(
+                      "${totalVal.toStringAsFixed(1)} mL/s",
+                      style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3, // 改為一排三個，更像儀表群
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 0.75, // 調整比例讓方框變短
+                ),
+                itemCount: fields.length,
+                itemBuilder: (context, fIdx) {
+                  final f = fields.elementAt(fIdx);
+                  final key = f['key']?.toString() ?? '';
+                  final info = _iconInfoCache[key] ?? {};
+                  final emoji = info['emoji'] ?? '💧';
+                  final faIconName = info['icon_name'] ?? 'droplet';
+                  final aiLabel = info['description'] ?? f['label'] ?? key;
+                  
+                  final val = _toDouble(latest[key]);
+                  final max = _toDouble(f['max_threshold']);
+                  final percent = (val / (max > 0 ? max : 100)).clamp(0.0, 1.0);
+                  final isDanger = percent > 0.8;
+
+                  return Container(
+                    padding: const EdgeInsets.all(6), // 極小邊距
+                    decoration: BoxDecoration(
+                      color: isDanger ? const Color(0xFFFFF2F2) : const Color(0xFFF7F9FF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDanger ? _scvDanger.withValues(alpha: 0.4) : _scvBorder),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 68, // 縮小圓圈以配合 3 欄佈局
+                          height: 68,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CircularProgressIndicator(
+                                value: percent,
+                                strokeWidth: 7,
+                                strokeCap: StrokeCap.round,
+                                backgroundColor: Colors.white,
+                                valueColor: AlwaysStoppedAnimation(isDanger ? _scvDanger : _scvPrimary),
+                              ),
+                              Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      val.toStringAsFixed(0),
+                                      style: TextStyle(
+                                        fontSize: 22, // 配合小圓圈調整數字大小
+                                        fontWeight: FontWeight.w900,
+                                        color: isDanger ? _scvDanger : const Color(0xFF1A1A1A),
+                                        letterSpacing: -1,
+                                        height: 1.0,
+                                      ),
+                                    ),
+                                    Text(emoji, style: const TextStyle(fontSize: 10)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          aiLabel,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: isDanger ? _scvDanger : _scvText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          "${(percent * 100).toStringAsFixed(0)}%",
+                          style: TextStyle(
+                            fontSize: 9, 
+                            color: isDanger ? _scvDanger.withValues(alpha: 0.7) : _scvMutedText,
+                            fontWeight: FontWeight.w500
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _IndustryPills extends StatefulWidget {
+  const _IndustryPills();
+
+  @override
+  State<_IndustryPills> createState() => _IndustryPillsState();
+}
+
+class _IndustryPillsState extends State<_IndustryPills> {
+  String _selected = 'Textile';
+
+  @override
+  Widget build(BuildContext context) {
+    final options = const ['Textile', 'Agriculture', 'Manufacture'];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          ...List.generate(options.length, (index) {
+            final label = options[index];
+            final selected = label == _selected;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: InkWell(
+                onTap: () => setState(() => _selected = label),
+                child: Container(
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected ? const Color(0xFFFFBF9D) : Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE6E6E6)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xE6000000),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              side: const BorderSide(color: Color(0xFFE6E6E6)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+              foregroundColor: const Color(0xFF1A1A1A),
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TemplateSelectionPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.tune, size: 16),
+            label: const Text(
+              'Add Template',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardChartFromFirestore extends StatefulWidget {
+  const _DashboardChartFromFirestore();
+
+  @override
+  State<_DashboardChartFromFirestore> createState() =>
+      _DashboardChartFromFirestoreState();
+}
+
+class _DashboardChartFromFirestoreState
+    extends State<_DashboardChartFromFirestore> {
+  final GeminiService _gemini = GeminiService();
+  bool _optimizing = false;
+  List<double>? _aiSuggestedSeries;
+
+  List<double>? _extractNumberList(String text) {
+    try {
+      final direct = jsonDecode(text);
+      if (direct is List) {
+        return direct.map((e) => _toDouble(e)).toList();
+      }
+      if (direct is Map && direct['curve'] is List) {
+        return (direct['curve'] as List).map((e) => _toDouble(e)).toList();
+      }
+    } catch (_) {}
+
+    final listMatch = RegExp(r'\[[\s\S]*\]').firstMatch(text);
+    if (listMatch == null) return null;
+    try {
+      final parsed = jsonDecode(listMatch.group(0)!);
+      if (parsed is List) {
+        return parsed.map((e) => _toDouble(e)).toList();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  List<FlSpot> _buildRecommendedSpots(List<FlSpot> current) {
+    if (current.isEmpty) return const [FlSpot(0, 20), FlSpot(1, 20)];
+    final fallback = List.generate(
+      current.length,
+      (i) => FlSpot(i.toDouble(), 20),
+    );
+    final ai = _aiSuggestedSeries;
+    if (ai == null || ai.isEmpty) return fallback;
+    return List.generate(current.length, (i) {
+      final sourceIndex = (i * ai.length / current.length).floor();
+      final safeIndex = sourceIndex.clamp(0, ai.length - 1);
+      return FlSpot(i.toDouble(), ai[safeIndex]);
+    });
+  }
+
+  Future<void> _generateSuggestedCurve(List<FlSpot> current) async {
+    if (_optimizing || current.isEmpty) return;
+    setState(() => _optimizing = true);
+    try {
+      final values = current.map((e) => e.y.toStringAsFixed(2)).join(', ');
+      final prompt =
+          '''
+請根據這段用水曲線，產生「建議使用曲線」。
+需求：
+1) 回傳 JSON 陣列，內容僅數字（公升）
+2) 長度維持 ${current.length}
+3) 曲線需平滑，整體低於目前用量，且不要有負值
+4) 只回傳 JSON，不要其他文字
+
+目前曲線：
+[$values]
+''';
+
+      final response = await _gemini.ask(prompt, '圖表即時總用水序列，單位為 L。');
+      final parsed = _extractNumberList(response);
+      if (parsed == null || parsed.isEmpty) {
+        throw Exception('AI 回傳格式無法解析');
+      }
+      setState(() {
+        _aiSuggestedSeries = parsed
+            .map((v) => v < 0 ? 0.0 : v.toDouble())
+            .toList();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已生成建議使用曲線')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('生成失敗：$e')));
+    } finally {
+      if (mounted) setState(() => _optimizing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collectionGroup('stream')
+          .limit(240)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return AppCard(
+            child: Text(
+              '圖表資料讀取失敗：${snapshot.error}',
+              style: const TextStyle(color: _scvDanger),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        // 在記憶體中進行排序以避免索引需求
+        final docs = [...snapshot.data!.docs];
+        docs.sort((a, b) {
+          final aa = (a.data() as Map<String, dynamic>)['timestamp'];
+          final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+          return _toEpochMillis(aa).compareTo(_toEpochMillis(bb));
+        });
+        final spotsCurrent = <FlSpot>[];
+        for (int i = 0; i < docs.length; i++) {
+          final data = docs[i].data() as Map<String, dynamic>;
+          final current =
+              _toDouble(data['kitchen_flow']) +
+              _toDouble(data['shower_flow']) +
+              _toDouble(data['bathtub_flow']) +
+              _toDouble(data['toilet_flow']);
+          spotsCurrent.add(FlSpot(i.toDouble(), current));
+        }
+        final spotsRecommended = _buildRecommendedSpots(spotsCurrent);
+
+        final maxY =
+            [
+              ...spotsCurrent.map((e) => e.y),
+              ...spotsRecommended.map((e) => e.y),
+            ].fold<double>(50.0, math.max) *
+            1.15;
+
+        return AppCard(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Water Usage History',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: LineChart(
+                  LineChartData(
+                    minY: 0,
+                    maxY: maxY < 50 ? 50 : maxY,
+                    minX: 0,
+                    maxX: spotsCurrent.isEmpty
+                        ? 1
+                        : (spotsCurrent.length - 1).toDouble(),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (_) => const FlLine(
+                        color: Color(0x80E6E6E6),
+                        strokeWidth: 1,
+                      ),
+                    ),
+                    borderData: FlBorderData(
+                      show: true,
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                    ),
+                    titlesData: const FlTitlesData(
+                      topTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                    ),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: spotsCurrent,
+                        isCurved: true,
+                        barWidth: 3,
+                        color: const Color(0xFF2D6EFF),
+                        belowBarData: BarAreaData(
+                          show: true,
+                          gradient: const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0x262D6EFF), Color(0x002D6EFF)],
+                          ),
+                        ),
+                        dotData: const FlDotData(show: false),
+                      ),
+                      LineChartBarData(
+                        spots: spotsRecommended,
+                        isCurved: true,
+                        barWidth: 3,
+                        color: const Color(0xFF7E7E7E),
+                        dashArray: [6, 4],
+                        dotData: const FlDotData(show: false),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: _optimizing
+                      ? null
+                      : () => _generateSuggestedCurve(spotsCurrent),
+                  icon: _optimizing
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome, size: 16),
+                  label: Text(_optimizing ? '生成中...' : '現在優化'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _scvPrimary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class TemplateSelectionPage extends StatefulWidget {
+  const TemplateSelectionPage({super.key});
+
+  @override
+  State<TemplateSelectionPage> createState() => _TemplateSelectionPageState();
+}
+
+class _TemplateSelectionPageState extends State<TemplateSelectionPage> {
+  String _keyword = '';
+  
+  final List<Map<String, dynamic>> _categories = [
+    {
+      'title': 'Industrial & Manufacturing',
+      'icon': Icons.factory_outlined,
+      'color': Colors.blueGrey,
+      'items': [
+        {
+          'name': 'Textile Dyeing Plant', 
+          'desc': 'High-volume water usage for dyeing and finishing.', 
+          'prompt': '自動化染整線、包含冷卻水塔與廢水回收系統、需監控 pH 值與濁度。',
+          'icon': Icons.opacity
+        },
+        {
+          'name': 'Beverage Bottling Line', 
+          'desc': 'Precision monitoring for CIP and ingredient water.', 
+          'prompt': '食品級生產線、包含 CIP (原地清洗) 系統、需嚴格監控沖洗水量與廢水比。',
+          'icon': Icons.local_drink
+        },
+        {
+          'name': 'Semiconductor Fab', 
+          'desc': 'Ultra-pure water (UPW) system monitoring.', 
+          'prompt': '高科技廠房、超純水系統、包含多階過濾與回收、需監控漏水敏感度極高。',
+          'icon': Icons.memory
+        },
+      ]
+    },
+    {
+      'title': 'Commercial & Infrastructure',
+      'icon': Icons.business_outlined,
+      'color': Colors.orange,
+      'items': [
+        {
+          'name': 'Data Center Cooling', 
+          'desc': 'WUE (Water Usage Effectiveness) tracking.', 
+          'prompt': '資料中心機房、主要為冷卻主機用水、需計算 PUE/WUE、監控蒸發與排放比。',
+          'icon': Icons.dns
+        },
+        {
+          'name': 'Hospital Medical Center', 
+          'desc': 'Critical water supply for sterilization and HVAC.', 
+          'prompt': '大型醫療機構、包含手術室消毒與中央空調用水、需 24/7 穩定供水監測。',
+          'icon': Icons.local_hospital
+        },
+        {
+          'name': 'Shopping Mall Complex', 
+          'desc': 'High-traffic restroom and AHU monitoring.', 
+          'prompt': '大型商場、主要用水為公廁與空調箱、尖峰時段流量波動大、需監控漏損。',
+          'icon': Icons.storefront
+        },
+      ]
+    },
+    {
+      'title': 'Smart Agriculture',
+      'icon': Icons.agriculture_outlined,
+      'color': Colors.green,
+      'items': [
+        {
+          'name': 'Hydroponic Vertical Farm', 
+          'desc': 'Recirculating nutrient solution monitoring.', 
+          'prompt': '室內垂直農場、水耕養液循環系統、需精確監控蒸散量與自動補水頻率。',
+          'icon': Icons.wb_sunny
+        },
+        {
+          'name': 'Vineyard Drip Irrigation', 
+          'desc': 'Evapotranspiration-based smart irrigation.', 
+          'prompt': '戶外葡萄園、滴灌系統、結合氣象數據、監控分區供水壓力與土壤濕度回饋。',
+          'icon': Icons.grass
+        },
+      ]
+    },
+    {
+      'title': 'Residential & Hospitality',
+      'icon': Icons.home_work_outlined,
+      'color': Colors.blue,
+      'items': [
+        {
+          'name': 'Luxury Smart Villa', 
+          'desc': 'Multi-zone indoor and outdoor management.', 
+          'prompt': '私人別墅、包含景觀泳池、智慧草坪灌溉與室內生活用水、需分區統計。',
+          'icon': Icons.villa
+        },
+        {
+          'name': 'Eco-Friendly Resort', 
+          'desc': 'Greywater harvesting and reuse system.', 
+          'prompt': '綠色渡假村、包含雨水回收系統與中水處理、需監控回收水使用比例。',
+          'icon': Icons.holiday_village
+        },
+      ]
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Choose a Template')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: AppSearchBar(
+              hintText: 'Search templates...',
+              onChanged: (v) => setState(() => _keyword = v),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _categories.length,
+              itemBuilder: (context, idx) {
+                final cat = _categories[idx];
+                final items = cat['items'] as List<Map<String, dynamic>>;
+                final filteredItems = items.where((i) => 
+                  i['name'].toString().toLowerCase().contains(_keyword.toLowerCase()) ||
+                  i['desc'].toString().toLowerCase().contains(_keyword.toLowerCase())
+                ).toList();
+
+                if (filteredItems.isEmpty) return const SizedBox.shrink();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Icon(cat['icon'] as IconData, color: cat['color'] as Color, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            cat['title'] as String,
+                            style: TextStyle(
+                              fontSize: 14, 
+                              fontWeight: FontWeight.bold, 
+                              color: cat['color'] as Color
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ...filteredItems.map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AddSitePage(
+                                initialName: item['name'] as String,
+                                initialDescription: item['desc'] as String,
+                                initialPrompt: item['prompt'] as String,
+                              ),
+                            ),
+                          );
+                        },
+                        child: AppCard(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: (cat['color'] as Color).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(item['icon'] as IconData, color: cat['color'] as Color),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['name'] as String,
+                                      style: const TextStyle(fontWeight: FontWeight.w700),
+                                    ),
+                                    Text(
+                                      item['desc'] as String,
+                                      style: TextStyle(color: _scvMutedText, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.add_circle_outline, color: _scvPrimary, size: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )),
+                    const SizedBox(height: 8),
+                  ],
                 );
               },
             ),
+          ),
         ],
       ),
-      body: pages[_tabIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tabIndex,
-        onDestinationSelected: (idx) => setState(() => _tabIndex = idx),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard), label: '儀表板'),
-          NavigationDestination(icon: Icon(Icons.domain), label: '場域'),
-          NavigationDestination(icon: Icon(Icons.cable), label: '連線'),
-          NavigationDestination(icon: Icon(Icons.psychology), label: '場域AI'),
-          NavigationDestination(icon: Icon(Icons.tune), label: 'Auto'),
-          NavigationDestination(icon: Icon(Icons.edit_note), label: '手動'),
+    );
+  }
+}
+
+class OptimizePage extends StatefulWidget {
+  const OptimizePage({super.key});
+
+  @override
+  State<OptimizePage> createState() => _OptimizePageState();
+}
+
+class _OptimizePageState extends State<OptimizePage> {
+  final GeminiService _gemini = GeminiService();
+  String _aiSuggestions = '正在分析數據並產生建議...';
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAiAdvice();
+  }
+
+  Future<void> _fetchAiAdvice() async {
+    try {
+      // 獲取最近的數據作為上下文
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('stream')
+          .limit(20)
+          .get();
+      
+      String contextData = '無數據';
+      if (snap.docs.isNotEmpty) {
+        // 在記憶體中手動排序
+        final sortedDocs = [...snap.docs];
+        sortedDocs.sort((a, b) {
+          final aa = (a.data() as Map<String, dynamic>)['timestamp'];
+          final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+          return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
+        });
+
+        contextData = sortedDocs.map((d) {
+          final data = Map<String, dynamic>.from(d.data() as Map<String, dynamic>);
+          // 處理 Timestamp 無法 JSON 序列化的問題
+          data.forEach((key, value) {
+            if (value is Timestamp) {
+              data[key] = value.toDate().toIso8601String();
+            }
+          });
+          return "${data['timestamp'] ?? ''}: ${jsonEncode(data)}";
+        }).join('\n');
+      }
+
+      final advice = await _gemini.getOptimizationTips(contextData);
+      if (mounted) {
+        setState(() {
+          _aiSuggestions = advice;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _aiSuggestions = '建議產生失敗：$e';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Learn to Optimize')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const SizedBox(height: 220, child: _DashboardChartFromFirestore()),
+          const SizedBox(height: 20),
+          AppCard(
+            child: Row(
+              children: const [
+                Icon(Icons.tips_and_updates_outlined, color: Colors.orangeAccent),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '基於您目前的用水模式，AI 為您量身打造了以下優化目標。',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, color: _scvPrimary, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'AI 智慧優化建議',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                    ),
+                    const Spacer(),
+                    if (_loading)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                  ],
+                ),
+                const Divider(height: 24),
+                _loading
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(child: Text('AI 正在深度思考中...')),
+                      )
+                    : Markdown(
+                        data: _aiSuggestions,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: EdgeInsets.zero,
+                      ),
+                const SizedBox(height: 8),
+                if (!_loading)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        setState(() => _loading = true);
+                        _fetchAiAdvice();
+                      },
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('重新分析'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class SensorManagementPage extends StatefulWidget {
+  const SensorManagementPage({super.key});
+
+  @override
+  State<SensorManagementPage> createState() => _SensorManagementPageState();
+}
+
+class _SensorManagementPageState extends State<SensorManagementPage> {
+  final _nameController = TextEditingController();
+  final _modelController = TextEditingController();
+  final _roomController = TextEditingController();
+  final _keywordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _modelController.dispose();
+    _roomController.dispose();
+    _keywordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Add Your Sensor')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          AppCard(
+            child: Column(
+              children: [
+                TextField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _modelController,
+                  decoration: const InputDecoration(labelText: 'Model'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _roomController,
+                  decoration: const InputDecoration(labelText: 'Room ID'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _keywordController,
+                  decoration: const InputDecoration(labelText: 'Keyword'),
+                ),
+                const SizedBox(height: 10),
+                const DropdownMenu(
+                  dropdownMenuEntries: [
+                    DropdownMenuEntry(value: 'wifi', label: 'Network: Wi-Fi'),
+                    DropdownMenuEntry(value: 'mqtt', label: 'Network: MQTT'),
+                    DropdownMenuEntry(value: 'ble', label: 'Network: BLE'),
+                    DropdownMenuEntry(
+                      value: 'zigbee',
+                      label: 'Network: Zigbee',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.auto_awesome, color: _scvPrimary),
+                  title: Text('AI Onboarding Status'),
+                  subtitle: Text('Ready'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          const AppCard(child: _SensorListsFromFirestore()),
+        ],
+      ),
+    );
+  }
+}
+
+class _SensorListsFromFirestore extends StatelessWidget {
+  const _SensorListsFromFirestore();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('sensors')
+          .orderBy('created_at', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        final byRoom = <String, List<Map<String, dynamic>>>{};
+        for (final d in docs) {
+          final data = d.data() as Map<String, dynamic>;
+          final room = data['place']?.toString().trim();
+          final key = (room == null || room.isEmpty) ? 'Unassigned' : room;
+          byRoom.putIfAbsent(key, () => []).add(data);
+        }
+        if (byRoom.isEmpty) {
+          return const Text('No sensor data');
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Sensor Lists',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            ...byRoom.entries.map((entry) {
+              return ExpansionTile(
+                title: Text(entry.key),
+                children: entry.value.map((sensor) {
+                  final id = sensor['id']?.toString() ?? '-';
+                  final typeId =
+                      (sensor['schema'] as Map?)?['type_id']?.toString() ?? '-';
+                  return ListTile(
+                    title: Text('$id  $typeId'),
+                    subtitle: Text(
+                      (sensor['purpose']?.toString().isNotEmpty ?? false)
+                          ? sensor['purpose'].toString()
+                          : 'No tags',
+                    ),
+                  );
+                }).toList(),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AddActionsTab extends StatelessWidget {
+  const _AddActionsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        AppCard(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.add_business_outlined),
+                title: const Text('Add Site'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AddSitePage()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.sensors_outlined),
+                title: const Text('Add Sensor'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AddDevicePage()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.library_books_outlined),
+                title: const Text('Choose Template'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TemplateSelectionPage(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.psychology_outlined),
+                title: const Text('Learn to Optimize'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const OptimizePage()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.list_alt_outlined),
+                title: const Text('Sensor Lists'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SensorManagementPage(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileHubTab extends StatelessWidget {
+  final int subTab;
+  final ValueChanged<int> onTabChanged;
+  final bool autoTriggerEnabled;
+  final int autoTriggerSeconds;
+  final ValueChanged<bool> onEnabledChanged;
+  final ValueChanged<int> onSecondsChanged;
+
+  const _ProfileHubTab({
+    required this.subTab,
+    required this.onTabChanged,
+    required this.autoTriggerEnabled,
+    required this.autoTriggerSeconds,
+    required this.onEnabledChanged,
+    required this.onSecondsChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = [
+      const ConnectivityTab(),
+      AutoTriggerSettingsTab(
+        enabled: autoTriggerEnabled,
+        seconds: autoTriggerSeconds,
+        onEnabledChanged: onEnabledChanged,
+        onSecondsChanged: onSecondsChanged,
+      ),
+      const ManualInputTab(),
+    ];
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 38,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              _ProfilePill(
+                label: 'Connectivity',
+                active: subTab == 0,
+                onTap: () => onTabChanged(0),
+              ),
+              _ProfilePill(
+                label: 'Auto',
+                active: subTab == 1,
+                onTap: () => onTabChanged(1),
+              ),
+              _ProfilePill(
+                label: 'Manual',
+                active: subTab == 2,
+                onTap: () => onTabChanged(2),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(child: pages[subTab]),
+      ],
+    );
+  }
+}
+
+class _ProfilePill extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _ProfilePill({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFFFFBF9D) : Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFE6E6E6)),
+          ),
+          child: Text(label),
+        ),
       ),
     );
   }
@@ -217,18 +1873,21 @@ class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
       ),
     );
     if (ok != true) return;
-    await FirebaseFirestore.instance.collection('sensors').doc(sensorDocId).delete();
+    await FirebaseFirestore.instance
+        .collection('sensors')
+        .doc(sensorDocId)
+        .delete();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已刪除裝置 $deviceId')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('已刪除裝置 $deviceId')));
   }
 
   Future<void> _clearDeviceSite(String sensorDocId) async {
-    await FirebaseFirestore.instance.collection('sensors').doc(sensorDocId).set({
-      'site_id': null,
-      'site_name': null,
-    }, SetOptions(merge: true));
+    await FirebaseFirestore.instance.collection('sensors').doc(sensorDocId).set(
+      {'site_id': null, 'site_name': null},
+      SetOptions(merge: true),
+    );
   }
 
   Future<void> _changeDeviceSite(
@@ -286,10 +1945,10 @@ class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
           (d) => (d['id']?.toString() ?? '') == chosen,
           orElse: () => <String, dynamic>{},
         );
-    await FirebaseFirestore.instance.collection('sensors').doc(sensorDocId).set({
-      'site_id': chosen,
-      'site_name': siteData['name']?.toString(),
-    }, SetOptions(merge: true));
+    await FirebaseFirestore.instance.collection('sensors').doc(sensorDocId).set(
+      {'site_id': chosen, 'site_name': siteData['name']?.toString()},
+      SetOptions(merge: true),
+    );
   }
 
   @override
@@ -314,12 +1973,21 @@ class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collectionGroup('stream')
-              .orderBy('timestamp', descending: true)
               .limit(1200)
               .snapshots(),
           builder: (context, readingSnap) {
+            if (readingSnap.hasError) return Center(child: Text("讀取失敗: ${readingSnap.error}"));
+            final docs = readingSnap.data?.docs ?? [];
+            // 在記憶體中手動排序，避免索引報報錯
+            final sortedDocs = [...docs];
+            sortedDocs.sort((a, b) {
+              final aa = (a.data() as Map<String, dynamic>)['timestamp'];
+              final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+              return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
+            });
+
             final latestByDevice = <String, Map<String, dynamic>>{};
-            for (final d in readingSnap.data?.docs ?? const []) {
+            for (final d in sortedDocs) {
               final deviceId = d.reference.parent.parent?.id;
               if (deviceId == null) continue;
               latestByDevice.putIfAbsent(
@@ -347,17 +2015,28 @@ class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
             }).toList();
 
             if (_sortBy == 'place_asc') {
-              enriched.sort((a, b) => ((a['raw'] as Map<String, dynamic>)['place']
-                      ?.toString() ??
-                  '').compareTo(
-                ((b['raw'] as Map<String, dynamic>)['place']?.toString() ?? ''),
-              ));
+              enriched.sort(
+                (a, b) =>
+                    ((a['raw'] as Map<String, dynamic>)['place']?.toString() ??
+                            '')
+                        .compareTo(
+                          ((b['raw'] as Map<String, dynamic>)['place']
+                                  ?.toString() ??
+                              ''),
+                        ),
+              );
             } else if (_sortBy == 'site_asc') {
-              enriched.sort((a, b) => ((a['raw'] as Map<String, dynamic>)['site_name']
-                      ?.toString() ??
-                  '').compareTo(
-                ((b['raw'] as Map<String, dynamic>)['site_name']?.toString() ?? ''),
-              ));
+              enriched.sort(
+                (a, b) =>
+                    ((a['raw'] as Map<String, dynamic>)['site_name']
+                                ?.toString() ??
+                            '')
+                        .compareTo(
+                          ((b['raw'] as Map<String, dynamic>)['site_name']
+                                  ?.toString() ??
+                              ''),
+                        ),
+              );
             } else {
               enriched.sort((a, b) {
                 final abnormalCmp =
@@ -379,8 +2058,14 @@ class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
                         value: 'abnormal',
                         child: Text('排序：異常優先'),
                       ),
-                      DropdownMenuItem(value: 'place_asc', child: Text('排序：位置 A-Z')),
-                      DropdownMenuItem(value: 'site_asc', child: Text('排序：場域 A-Z')),
+                      DropdownMenuItem(
+                        value: 'place_asc',
+                        child: Text('排序：位置 A-Z'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'site_asc',
+                        child: Text('排序：場域 A-Z'),
+                      ),
                     ],
                     onChanged: (v) {
                       if (v == null) return;
@@ -398,7 +2083,8 @@ class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
                     itemCount: enriched.length,
                     itemBuilder: (context, index) {
                       final docId = enriched[index]['docId'] as String;
-                      final raw = enriched[index]['raw'] as Map<String, dynamic>;
+                      final raw =
+                          enriched[index]['raw'] as Map<String, dynamic>;
                       final latest =
                           enriched[index]['latest'] as Map<String, dynamic>;
                       final abnormal = enriched[index]['abnormal'] as bool;
@@ -409,12 +2095,12 @@ class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
                         siteName: raw['site_name']?.toString(),
                         place: raw['place'] ?? '未命名區域',
                         schema: raw['schema'] ?? {},
-                        connectionProfile:
-                            (raw['connection_profile'] as Map?)
-                                ?.cast<String, dynamic>(),
+                        connectionProfile: (raw['connection_profile'] as Map?)
+                            ?.cast<String, dynamic>(),
                         latestData: latest,
                         isAbnormal: abnormal,
-                        onChangeSite: () => _changeDeviceSite(docId, currentSiteId),
+                        onChangeSite: () =>
+                            _changeDeviceSite(docId, currentSiteId),
                         onClearSite: () => _clearDeviceSite(docId),
                         onDeleteDevice: () => _deleteDevice(docId, deviceId),
                       );
@@ -505,24 +2191,39 @@ class _PostAnalysisTabState extends State<PostAnalysisTab> {
       final summaryLines = <String>[];
       for (final sensorDoc in sensorQuery.docs) {
         final sensor = sensorDoc.data();
+        // 優先讀取 place，若無則讀取 id，再無則使用 docId
         final deviceId = sensor['id']?.toString() ?? sensorDoc.id;
-        final place = sensor['place']?.toString() ?? '未命名區域';
+        final place = (sensor['place']?.toString().isNotEmpty == true) 
+            ? sensor['place'] 
+            : (sensor['name']?.toString().isNotEmpty == true ? sensor['name'] : ' 區域 $deviceId');
+        
         final query = await FirebaseFirestore.instance
             .collection('readings')
             .doc(deviceId)
             .collection('stream')
-            .orderBy('timestamp', descending: true)
-            .limit(8)
+            .limit(10) // 增加讀取筆數
             .get();
+
         if (query.docs.isEmpty) {
-          summaryLines.add('[$place/$deviceId] no_data');
+          summaryLines.add('[$place (ID: $deviceId)] 目前無即時感測數據');
           continue;
         }
-        for (final doc in query.docs) {
+
+        // 手動排序以確保穩定性
+        final sortedDocs = [...query.docs];
+        sortedDocs.sort((a, b) {
+          final aa = a.data()['timestamp'];
+          final bb = b.data()['timestamp'];
+          return _toEpochMillis(aa).compareTo(_toEpochMillis(bb));
+        });
+
+        for (final doc in sortedDocs.take(5)) {
           final data = doc.data();
           final ts = data['timestamp'];
           final map = Map<String, dynamic>.from(data)..remove('timestamp');
-          summaryLines.add('[$place/$deviceId] ${ts ?? 'no_ts'} ${jsonEncode(map)}');
+          summaryLines.add(
+            '位置: $place, 裝置ID: $deviceId, 時間: ${ts ?? '未知'}, 數據: ${jsonEncode(map)}',
+          );
         }
       }
 
@@ -632,7 +2333,13 @@ class _PostAnalysisTabState extends State<PostAnalysisTab> {
               ),
               const SizedBox(width: 12),
               if (widget.autoTriggerEnabled)
-                Text('Auto 每 ${widget.autoTriggerSeconds}s', style: const TextStyle(color: Colors.deepPurple)),
+                Text(
+                  'Auto 每 ${widget.autoTriggerSeconds}s',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -659,9 +2366,9 @@ class _PostAnalysisTabState extends State<PostAnalysisTab> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: _scvSurface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(color: _scvBorder),
                     ),
                     child: Markdown(
                       data: _result,
@@ -716,9 +2423,7 @@ class AutoTriggerSettingsTab extends StatelessWidget {
           onChanged: enabled ? (v) => onSecondsChanged(v.round()) : null,
         ),
         const SizedBox(height: 16),
-        const Text(
-          '說明：啟用後，場域 Post-AI 分頁會依設定秒數自動讀取最近資料並送給 GPT。',
-        ),
+        const Text('說明：啟用後，場域 Post-AI 分頁會依設定秒數自動讀取最近資料並送給 GPT。'),
       ],
     );
   }
@@ -733,66 +2438,6 @@ class ManualInputTab extends StatefulWidget {
 
 class _ManualInputTabState extends State<ManualInputTab> {
   String? _selectedDeviceId;
-  final _kController = TextEditingController();
-  final _sController = TextEditingController();
-  final _bController = TextEditingController();
-  final _tController = TextEditingController();
-  bool _saving = false;
-
-  Future<void> _submit() async {
-    final id = _selectedDeviceId;
-    if (id == null || id.isEmpty) return;
-
-    final data = {
-      'kitchen_flow': double.tryParse(_kController.text) ?? 0.0,
-      'shower_flow': double.tryParse(_sController.text) ?? 0.0,
-      'bathtub_flow': double.tryParse(_bController.text) ?? 0.0,
-      'toilet_flow': double.tryParse(_tController.text) ?? 0.0,
-    };
-
-    setState(() => _saving = true);
-    try {
-      await FirebaseFirestore.instance
-          .collection('readings')
-          .doc(id)
-          .collection('stream')
-          .add({
-            ...data,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('手動資料已送出')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('送出失敗: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Widget _numField(TextEditingController c, String label) {
-    return TextField(
-      controller: c,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _kController.dispose();
-    _sController.dispose();
-    _bController.dispose();
-    _tController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -805,13 +2450,164 @@ class _ManualInputTabState extends State<ManualInputTab> {
           onChanged: (value) => setState(() => _selectedDeviceId = value),
         ),
         const SizedBox(height: 10),
-        _numField(_kController, 'kitchen_flow (mL/s)'),
-        const SizedBox(height: 10),
-        _numField(_sController, 'shower_flow (mL/s)'),
-        const SizedBox(height: 10),
-        _numField(_bController, 'bathtub_flow (mL/s)'),
-        const SizedBox(height: 10),
-        _numField(_tController, 'toilet_flow (mL/s)'),
+        if (_selectedDeviceId == null || _selectedDeviceId!.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text('請先選擇裝置', style: const TextStyle(color: _scvMutedText)),
+          )
+        else
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('sensors')
+                .where('id', isEqualTo: _selectedDeviceId)
+                .limit(1)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final data =
+                  snapshot.data!.docs.first.data() as Map<String, dynamic>? ??
+                  {};
+              final schema = data['schema'] as Map<String, dynamic>? ?? {};
+              final schemaFields = (schema['fields'] as List<dynamic>? ?? [])
+                  .whereType<Map>()
+                  .map(
+                    (f) => {
+                      'key': (f['key'] ?? '').toString(),
+                      'label': (f['label'] ?? f['key'] ?? '').toString(),
+                      'unit': (f['unit'] ?? '').toString(),
+                    },
+                  )
+                  .where((f) => (f['key'] as String).isNotEmpty)
+                  .toList();
+
+              if (schemaFields.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    '此裝置無 schema 欄位，無法手動輸入',
+                    style: TextStyle(color: Colors.orangeAccent),
+                  ),
+                );
+              }
+
+              return _ManualInputForm(
+                deviceId: _selectedDeviceId!,
+                fields: schemaFields,
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _ManualInputForm extends StatefulWidget {
+  final String deviceId;
+  final List<Map<String, dynamic>> fields;
+
+  const _ManualInputForm({required this.deviceId, required this.fields});
+
+  @override
+  State<_ManualInputForm> createState() => _ManualInputFormState();
+}
+
+class _ManualInputFormState extends State<_ManualInputForm> {
+  late Map<String, TextEditingController> _controllers;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = {
+      for (final f in widget.fields)
+        (f['key'] as String): TextEditingController(text: '0'),
+    };
+  }
+
+  @override
+  void didUpdateWidget(covariant _ManualInputForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_fieldKeys(oldWidget.fields) != _fieldKeys(widget.fields)) {
+      for (final c in _controllers.values) {
+        c.dispose();
+      }
+      _controllers = {
+        for (final f in widget.fields)
+          (f['key'] as String): TextEditingController(text: '0'),
+      };
+    }
+  }
+
+  Set<String> _fieldKeys(List<Map<String, dynamic>> fields) {
+    return fields.map((f) => f['key'] as String).toSet();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() => _saving = true);
+    try {
+      final data = <String, num>{};
+      for (final f in widget.fields) {
+        final key = f['key'] as String;
+        final c = _controllers[key];
+        if (c != null) {
+          data[key] = double.tryParse(c.text) ?? 0.0;
+        }
+      }
+
+      await FirebaseFirestore.instance
+          .collection('readings')
+          .doc(widget.deviceId)
+          .collection('stream')
+          .add({...data, 'timestamp': FieldValue.serverTimestamp()});
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('手動資料已送出')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('送出失敗: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ...widget.fields.map((f) {
+          final key = f['key'] as String;
+          final label = f['label'] as String;
+          final unit = f['unit'] as String;
+          final hint = unit.isNotEmpty ? '$label ($unit)' : label;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: TextField(
+              controller: _controllers[key],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: hint,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          );
+        }),
         const SizedBox(height: 16),
         ElevatedButton.icon(
           onPressed: _saving ? null : _submit,
@@ -860,11 +2656,9 @@ class SensorCard extends StatelessWidget {
     final List<dynamic> fields = schema['fields'] ?? [];
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: () {
           Navigator.push(
             context,
@@ -882,89 +2676,91 @@ class SensorCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      place,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    Text(
-                      "ID: $deviceId",
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                    if (siteName != null && siteName!.isNotEmpty)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        "場域: $siteName",
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        place,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Icon(Icons.water_drop, color: Colors.blueAccent),
-                    if (connectionProfile != null)
                       Text(
-                        (connectionProfile!['protocol'] ?? '-').toString(),
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        "ID: $deviceId",
+                        style: TextStyle(fontSize: 12, color: _scvMutedText),
                       ),
-                    if (isAbnormal)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4),
-                        child: Chip(
-                          label: Text('異常', style: TextStyle(color: Colors.white)),
-                          backgroundColor: Colors.red,
-                          visualDensity: VisualDensity.compact,
+                      if (siteName != null && siteName!.isNotEmpty)
+                        Text(
+                          "場域: $siteName",
+                          style: TextStyle(fontSize: 12, color: _scvMutedText),
                         ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Icon(
+                        Icons.water_drop,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
-                    PopupMenuButton<String>(
-                      tooltip: '裝置操作',
-                      onSelected: (value) async {
-                        if (value == 'change_site' && onChangeSite != null) {
-                          await onChangeSite!.call();
-                        } else if (value == 'clear_site' && onClearSite != null) {
-                          await onClearSite!.call();
-                        } else if (value == 'delete' && onDeleteDevice != null) {
-                          await onDeleteDevice!.call();
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'change_site',
-                          child: Text('更改場域'),
+                      if (connectionProfile != null)
+                        Text(
+                          (connectionProfile!['protocol'] ?? '-').toString(),
+                          style: TextStyle(fontSize: 11, color: _scvMutedText),
                         ),
-                        PopupMenuItem(
-                          value: 'clear_site',
-                          child: Text('移出場域'),
+                      if (isAbnormal)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Chip(
+                            label: Text(
+                              '異常',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            backgroundColor: _scvDanger,
+                            visualDensity: VisualDensity.compact,
+                          ),
                         ),
-                        PopupMenuDivider(),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text('刪除裝置'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            _DeviceLatestView(
-              deviceId: deviceId,
-              fields: fields,
-              latestData: latestData,
-            ),
+                      PopupMenuButton<String>(
+                        tooltip: '裝置操作',
+                        onSelected: (value) async {
+                          if (value == 'change_site' && onChangeSite != null) {
+                            await onChangeSite!.call();
+                          } else if (value == 'clear_site' &&
+                              onClearSite != null) {
+                            await onClearSite!.call();
+                          } else if (value == 'delete' &&
+                              onDeleteDevice != null) {
+                            await onDeleteDevice!.call();
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(
+                            value: 'change_site',
+                            child: Text('更改場域'),
+                          ),
+                          PopupMenuItem(
+                            value: 'clear_site',
+                            child: Text('移出場域'),
+                          ),
+                          PopupMenuDivider(),
+                          PopupMenuItem(value: 'delete', child: Text('刪除裝置')),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              _DeviceLatestView(
+                deviceId: deviceId,
+                fields: fields,
+                latestData: latestData,
+              ),
               const SizedBox(height: 8),
               Text(
                 '點擊查看分時圖表與欄位',
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                style: TextStyle(color: _scvMutedText, fontSize: 12),
               ),
             ],
           ),
@@ -995,7 +2791,6 @@ class _DeviceLatestView extends StatelessWidget {
           .collection('readings')
           .doc(deviceId)
           .collection('stream')
-          .orderBy('timestamp', descending: true)
           .limit(1)
           .snapshots(),
       builder: (context, snapshot) {
@@ -1003,10 +2798,19 @@ class _DeviceLatestView extends StatelessWidget {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Text(
             "等待數據連接...",
-            style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+            style: TextStyle(color: _scvMutedText, fontStyle: FontStyle.italic),
           );
         }
-        final latest = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+        // 在記憶體中手動排序
+        final readingDocs = snapshot.data?.docs ?? [];
+        final sortedDocs = [...readingDocs];
+        sortedDocs.sort((a, b) {
+          final aa = (a.data() as Map<String, dynamic>)['timestamp'];
+          final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+          return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
+        });
+        
+        final latest = sortedDocs.first.data() as Map<String, dynamic>;
         return _buildContent(latest);
       },
     );
@@ -1031,13 +2835,13 @@ class _DeviceLatestView extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(label, style: TextStyle(color: Colors.grey[800])),
+                  Text(label, style: const TextStyle(color: _scvText)),
                   Text(
                     "${value.toStringAsFixed(1)} $unit",
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: percent > 0.8 ? Colors.red : Colors.blue[800],
+                      color: percent > 0.8 ? _scvDanger : _scvPrimary,
                     ),
                   ),
                 ],
@@ -1047,9 +2851,9 @@ class _DeviceLatestView extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: percent,
-                  backgroundColor: Colors.grey[200],
+                  backgroundColor: _scvBorder,
                   valueColor: AlwaysStoppedAnimation(
-                    percent > 0.8 ? Colors.redAccent : Colors.blueAccent,
+                    percent > 0.8 ? _scvDanger : _scvPrimary,
                   ),
                   minHeight: 6,
                 ),
@@ -1166,12 +2970,7 @@ class DeviceSelectorField extends StatelessWidget {
           key: ValueKey(value),
           initialValue: value,
           items: options
-              .map(
-                (id) => DropdownMenuItem(
-                  value: id,
-                  child: Text(id),
-                ),
-              )
+              .map((id) => DropdownMenuItem(value: id, child: Text(id)))
               .toList(),
           onChanged: onChanged,
           decoration: InputDecoration(
@@ -1194,7 +2993,11 @@ class SiteManagementTab extends StatefulWidget {
 class _SiteManagementTabState extends State<SiteManagementTab> {
   String _sortBy = 'abnormal';
 
-  Future<void> _deleteSite(String siteDocId, String siteId, String siteName) async {
+  Future<void> _deleteSite(
+    String siteDocId,
+    String siteId,
+    String siteName,
+  ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1229,19 +3032,24 @@ class _SiteManagementTabState extends State<SiteManagementTab> {
     await batch.commit();
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已刪除場域 $siteName')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('已刪除場域 $siteName')));
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('sites')
-          .orderBy('created_at', descending: true)
-          .snapshots(),
+      stream: FirebaseFirestore.instance.collection('sites').snapshots(),
       builder: (context, siteSnap) {
+        if (siteSnap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('場域資料讀取失敗：${siteSnap.error}'),
+            ),
+          );
+        }
         if (!siteSnap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -1252,16 +3060,36 @@ class _SiteManagementTabState extends State<SiteManagementTab> {
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance.collection('sensors').snapshots(),
           builder: (context, sensorSnap) {
+            if (sensorSnap.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('感測器資料讀取失敗：${sensorSnap.error}'),
+                ),
+              );
+            }
             final sensorDocs = sensorSnap.data?.docs ?? const [];
             return StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collectionGroup('stream')
-                  .orderBy('timestamp', descending: true)
                   .limit(1200)
                   .snapshots(),
               builder: (context, readingSnap) {
+                if (readingSnap.hasError) return Center(child: Text("讀取失敗: ${readingSnap.error}"));
+                final readingDocs = readingSnap.data?.docs ?? [];
+                // 在記憶體中手動排序，避免索引報錯
+                final sortedReadingDocs = [...readingDocs];
+                sortedReadingDocs.sort((a, b) {
+                  final aa = (a.data() as Map<String, dynamic>)['timestamp'];
+                  final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+                  return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
+                });
+
+                final readingError = readingSnap.hasError
+                    ? readingSnap.error
+                    : null;
                 final latestByDevice = <String, Map<String, dynamic>>{};
-                for (final d in readingSnap.data?.docs ?? const []) {
+                for (final d in sortedReadingDocs) {
                   final deviceId = d.reference.parent.parent?.id;
                   if (deviceId == null) continue;
                   latestByDevice.putIfAbsent(
@@ -1305,10 +3133,15 @@ class _SiteManagementTabState extends State<SiteManagementTab> {
                 }).toList();
 
                 if (_sortBy == 'name_asc') {
-                  rows.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+                  rows.sort(
+                    (a, b) =>
+                        (a['name'] as String).compareTo(b['name'] as String),
+                  );
                 } else if (_sortBy == 'devices_desc') {
                   rows.sort(
-                    (a, b) => (b['deviceCount'] as int).compareTo(a['deviceCount'] as int),
+                    (a, b) => (b['deviceCount'] as int).compareTo(
+                      a['deviceCount'] as int,
+                    ),
                   );
                 } else {
                   rows.sort((a, b) {
@@ -1324,6 +3157,26 @@ class _SiteManagementTabState extends State<SiteManagementTab> {
 
                 return Column(
                   children: [
+                    if (readingError != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF6F6),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFFD9D9)),
+                          ),
+                          child: Text(
+                            '即時讀值載入失敗，已改顯示場域基本資料：$readingError',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: _scvDanger,
+                            ),
+                          ),
+                        ),
+                      ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                       child: DropdownButtonFormField<String>(
@@ -1368,7 +3221,9 @@ class _SiteManagementTabState extends State<SiteManagementTab> {
                           return Card(
                             child: ListTile(
                               leading: Icon(
-                                abnormal > 0 ? Icons.warning_amber : Icons.domain,
+                                abnormal > 0
+                                    ? Icons.warning_amber
+                                    : Icons.domain,
                                 color: abnormal > 0 ? Colors.red : null,
                               ),
                               title: Text(name),
@@ -1502,9 +3357,7 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
         : (_windowHours == 24 ? 900 : 1200);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.place} (${widget.deviceId})'),
-      ),
+      appBar: AppBar(title: Text('${widget.place} (${widget.deviceId})')),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('readings')
@@ -1530,18 +3383,18 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final docs = snapshot.data!.docs.reversed.toList();
+          final snapshotDocs = snapshot.data!.docs.reversed.toList();
           final isTruncated = snapshot.data!.docs.length >= queryLimit;
-          final renderDocs = _downsampleDocs(docs, maxRenderPoints);
-          final isDownsampled = renderDocs.length < docs.length;
+          final renderDocs = _downsampleDocs(snapshotDocs, maxRenderPoints);
+          final isDownsampled = renderDocs.length < snapshotDocs.length;
 
           final colorPool = <Color>[
-            Colors.blue,
-            Colors.orange,
-            Colors.green,
-            Colors.red,
-            Colors.purple,
-            Colors.teal,
+            _scvPrimary,
+            const Color(0xFF6FE6B8),
+            const Color(0xFF4CA7FF),
+            const Color(0xFFFFB86B),
+            const Color(0xFFC58BFF),
+            _scvDanger,
           ];
 
           final lines = <LineChartBarData>[];
@@ -1553,12 +3406,7 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
               final data = doc.data() as Map<String, dynamic>;
               final val = data[key];
               if (val is num && val.toDouble().isFinite) {
-                spots.add(
-                  FlSpot(
-                    i.toDouble(),
-                    val.toDouble(),
-                  ),
-                );
+                spots.add(FlSpot(i.toDouble(), val.toDouble()));
               }
             }
             if (spots.isNotEmpty) {
@@ -1583,7 +3431,7 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
               .fold<double>(0, math.max);
           final selectedValues = <double>[];
           for (final key in _selectedKeys) {
-            for (final doc in docs) {
+            for (final doc in snapshotDocs) {
               final data = doc.data() as Map<String, dynamic>;
               final val = data[key];
               if (val is num) selectedValues.add(val.toDouble());
@@ -1651,7 +3499,9 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                   FilledButton.tonalIcon(
                     onPressed: () {
                       setState(() {
-                        _selectedKeys = commonKeys.isEmpty ? fieldKeys : commonKeys;
+                        _selectedKeys = commonKeys.isEmpty
+                            ? fieldKeys
+                            : commonKeys;
                       });
                     },
                     icon: const Icon(Icons.auto_graph),
@@ -1700,14 +3550,20 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                 const SizedBox(height: 8),
                 Text(
                   '資料量過大，已顯示最近 $queryLimit 筆（建議搭配 1 小時或後續啟用降採樣）。',
-                  style: TextStyle(color: Colors.orange.shade800, fontSize: 12),
+                  style: const TextStyle(
+                    color: Color(0xFFFFC472),
+                    fontSize: 12,
+                  ),
                 ),
               ],
               if (isDownsampled) ...[
                 const SizedBox(height: 4),
                 Text(
-                  '為了避免卡頓，圖表已自動降採樣顯示（${renderDocs.length}/${docs.length} 點）。',
-                  style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
+                  '為了避免卡頓，圖表已自動降採樣顯示（${renderDocs.length}/${snapshotDocs.length} 點）。',
+                  style: const TextStyle(
+                    color: Color(0xFFFFC472),
+                    fontSize: 12,
+                  ),
                 ),
               ],
               const SizedBox(height: 8),
@@ -1733,17 +3589,18 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                               sideTitles: SideTitles(
                                 showTitles: true,
                                 interval: _windowHours == 1
-                                    ? math.max(1, docs.length / 4)
+                                    ? math.max(1, snapshotDocs.length / 4)
                                     : (_windowHours == 24
-                                          ? math.max(1, docs.length / 6)
-                                          : math.max(1, docs.length / 7)),
+                                          ? math.max(1, snapshotDocs.length / 6)
+                                          : math.max(1, snapshotDocs.length / 7)),
                                 getTitlesWidget: (value, meta) {
                                   final idx = value.round();
                                   if (idx < 0 || idx >= renderDocs.length) {
                                     return const SizedBox.shrink();
                                   }
                                   final data =
-                                      renderDocs[idx].data() as Map<String, dynamic>;
+                                      renderDocs[idx].data()
+                                          as Map<String, dynamic>;
                                   final ts = data['timestamp'];
                                   if (ts is! Timestamp) {
                                     return const SizedBox.shrink();
@@ -1754,14 +3611,27 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                                       : '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 4),
-                                    child: Text(label, style: const TextStyle(fontSize: 10)),
+                                    child: Text(
+                                      label,
+                                      style: const TextStyle(fontSize: 10),
+                                    ),
                                   );
                                 },
                               ),
                             ),
                           ),
-                          borderData: FlBorderData(show: true),
-                          gridData: const FlGridData(show: true),
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: true,
+                            getDrawingHorizontalLine: (value) =>
+                                const FlLine(color: _scvBorder, strokeWidth: 1),
+                            getDrawingVerticalLine: (value) =>
+                                const FlLine(color: _scvBorder, strokeWidth: 1),
+                          ),
+                          borderData: FlBorderData(
+                            show: true,
+                            border: Border.all(color: _scvBorder),
+                          ),
                         ),
                       ),
               ),
@@ -1798,16 +3668,25 @@ class SiteDetailPage extends StatelessWidget {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final docs = snapshot.data!.docs;
+          final siteSensorDocs = snapshot.data!.docs;
           return StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collectionGroup('stream')
-                .orderBy('timestamp', descending: true)
                 .limit(1200)
                 .snapshots(),
             builder: (context, readingSnap) {
+              if (readingSnap.hasError) return Center(child: Text("讀取失敗: ${readingSnap.error}"));
+              final readingDocs = readingSnap.data?.docs ?? [];
+              // 在記憶體中手動排序，避免索引報錯
+              final sortedDocs = [...readingDocs];
+              sortedDocs.sort((a, b) {
+                final aa = (a.data() as Map<String, dynamic>)['timestamp'];
+                final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+                return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
+              });
+
               final latestByDevice = <String, Map<String, dynamic>>{};
-              for (final d in readingSnap.data?.docs ?? const []) {
+              for (final d in sortedDocs) {
                 final deviceId = d.reference.parent.parent?.id;
                 if (deviceId == null) continue;
                 latestByDevice.putIfAbsent(
@@ -1816,7 +3695,7 @@ class SiteDetailPage extends StatelessWidget {
                 );
               }
 
-              final rows = docs.map((doc) {
+              final rows = siteSensorDocs.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final id = data['id']?.toString() ?? '-';
                 final schema =
@@ -1843,7 +3722,9 @@ class SiteDetailPage extends StatelessWidget {
               });
 
               final deviceCount = rows.length;
-              final abnormalCount = rows.where((e) => e['abnormal'] as bool).length;
+              final abnormalCount = rows
+                  .where((e) => e['abnormal'] as bool)
+                  .length;
               final totalFlow = rows.fold<double>(
                 0,
                 (acc, e) => acc + (e['flow'] as double),
@@ -1895,8 +3776,8 @@ class SiteDetailPage extends StatelessWidget {
                                       : Icons.warning_amber,
                                   size: 18,
                                   color: healthyRate >= 0.8
-                                      ? Colors.green
-                                      : Colors.orange,
+                                      ? _scvPrimary
+                                      : const Color(0xFFFFC472),
                                 ),
                                 label: Text('即時健康 $healthText'),
                               ),
@@ -1906,7 +3787,7 @@ class SiteDetailPage extends StatelessWidget {
                           LinearProgressIndicator(
                             value: healthyRate.clamp(0, 1),
                             minHeight: 8,
-                            backgroundColor: Colors.grey.shade200,
+                            backgroundColor: Colors.white12,
                           ),
                         ],
                       ),
@@ -1965,26 +3846,35 @@ class SiteDeviceMiniCard extends StatelessWidget {
               .collection('readings')
               .doc(deviceId)
               .collection('stream')
-              .orderBy('timestamp', descending: true)
               .limit(120)
               .snapshots(),
           builder: (context, snapshot) {
-            final docs = (snapshot.data?.docs ?? []).reversed.toList();
+            // 在記憶體中手動排序
+            final readingDocs = snapshot.data?.docs ?? [];
+            final sortedDocs = [...readingDocs];
+            sortedDocs.sort((a, b) {
+              final aa = (a.data() as Map<String, dynamic>)['timestamp'];
+              final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+              return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
+            });
+
+            final snapshotDocs = sortedDocs.reversed.toList();
             final targetKey = fields.isNotEmpty ? fields.first : 'kitchen_flow';
             final spots = <FlSpot>[];
-            for (int i = 0; i < docs.length; i++) {
-              final data = docs[i].data() as Map<String, dynamic>;
+            for (int i = 0; i < snapshotDocs.length; i++) {
+              final data = snapshotDocs[i].data() as Map<String, dynamic>;
               final value = data[targetKey];
               if (value is num) {
                 spots.add(FlSpot(i.toDouble(), value.toDouble()));
               }
             }
 
-            final latest = docs.isNotEmpty
-                ? (docs.last.data() as Map<String, dynamic>)[targetKey]
+            final latest = snapshotDocs.isNotEmpty
+                ? (snapshotDocs.last.data() as Map<String, dynamic>)[targetKey]
                 : null;
-            final latestText =
-                latest is num ? latest.toStringAsFixed(1) : 'N/A';
+            final latestText = latest is num
+                ? latest.toStringAsFixed(1)
+                : 'N/A';
             final maxY = spots.isEmpty
                 ? 10.0
                 : spots.map((s) => s.y).fold<double>(0, math.max) * 1.2;
@@ -2009,7 +3899,7 @@ class SiteDeviceMiniCard extends StatelessWidget {
                                 '異常',
                                 style: TextStyle(color: Colors.white),
                               ),
-                              backgroundColor: Colors.red,
+                              backgroundColor: _scvDanger,
                               visualDensity: VisualDensity.compact,
                             ),
                           ),
@@ -2035,7 +3925,7 @@ class SiteDeviceMiniCard extends StatelessWidget {
                                 // Keep mini chart stable without curve overshoot.
                                 isCurved: false,
                                 barWidth: 2,
-                                color: Colors.deepPurple,
+                                color: _scvPrimary,
                                 dotData: const FlDotData(show: false),
                               ),
                             ],
@@ -2047,8 +3937,18 @@ class SiteDeviceMiniCard extends StatelessWidget {
                                 sideTitles: SideTitles(showTitles: false),
                               ),
                             ),
-                            gridData: const FlGridData(show: true),
-                            borderData: FlBorderData(show: true),
+                            gridData: FlGridData(
+                              show: true,
+                              drawVerticalLine: false,
+                              getDrawingHorizontalLine: (value) => const FlLine(
+                                color: _scvBorder,
+                                strokeWidth: 1,
+                              ),
+                            ),
+                            borderData: FlBorderData(
+                              show: true,
+                              border: Border.all(color: _scvBorder),
+                            ),
                           ),
                         ),
                 ),

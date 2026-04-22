@@ -92,7 +92,9 @@ class _AddDevicePageState extends State<AddDevicePage> {
         'emulator',
       );
       final useFallback = hasError && looksLikeEmulator;
-      final nextSchema = useFallback ? _buildEmulatorFallbackSchema() : schemaMap;
+      final nextSchema = useFallback
+          ? _buildEmulatorFallbackSchema()
+          : schemaMap;
 
       if (!mounted) return;
       setState(() {
@@ -185,7 +187,9 @@ class _AddDevicePageState extends State<AddDevicePage> {
         child: Column(
           children: [
             Card(
-              color: Colors.blue.shade50,
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -228,7 +232,11 @@ class _AddDevicePageState extends State<AddDevicePage> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(8),
-                color: Colors.black12,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
                 child: Text(
                   _schemaJson!,
                   style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
@@ -253,8 +261,8 @@ class _AddDevicePageState extends State<AddDevicePage> {
                   );
                 }).toList();
 
-                final validValue = items
-                        .any((item) => item.value == _selectedSiteId)
+                final validValue =
+                    items.any((item) => item.value == _selectedSiteId)
                     ? _selectedSiteId
                     : null;
 
@@ -326,11 +334,20 @@ class _AddDevicePageState extends State<AddDevicePage> {
                     DropdownButtonFormField<String>(
                       initialValue: _protocol,
                       items: const [
-                        DropdownMenuItem(value: 'emulator', child: Text('Emulator')),
+                        DropdownMenuItem(
+                          value: 'emulator',
+                          child: Text('Emulator'),
+                        ),
                         DropdownMenuItem(value: 'ip', child: Text('IP/HTTP')),
                         DropdownMenuItem(value: 'mqtt', child: Text('MQTT')),
-                        DropdownMenuItem(value: 'ble', child: Text('Bluetooth LE')),
-                        DropdownMenuItem(value: 'zigbee', child: Text('Zigbee')),
+                        DropdownMenuItem(
+                          value: 'ble',
+                          child: Text('Bluetooth LE'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'zigbee',
+                          child: Text('Zigbee'),
+                        ),
                       ],
                       onChanged: (v) {
                         if (v == null) return;
@@ -389,8 +406,6 @@ class _AddDevicePageState extends State<AddDevicePage> {
                 onPressed: _parsedSchema == null ? null : _save,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.all(16),
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
                 ),
                 child: const Text("確認新增"),
               ),
