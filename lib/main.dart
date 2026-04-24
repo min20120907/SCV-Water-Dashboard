@@ -252,6 +252,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _showDemoGuide() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _DemoGuideDialog(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -287,6 +295,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ? AppBar(
               title: Text(titles[_tabIndex]),
               actions: [
+                IconButton(
+                  icon: const Icon(Icons.help_outline),
+                  onPressed: _showDemoGuide,
+                ),
                 if (_tabIndex == 1)
                   Row(
                     children: [
@@ -317,6 +329,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onNotificationTap: () {
                   setState(() => _tabIndex = 2);
                 },
+                onHelpTap: _showDemoGuide,
               ),
             ),
       body: pages[_tabIndex],
@@ -414,8 +427,12 @@ class _BottomTabIcon extends StatelessWidget {
 
 class _DashboardTopBar extends StatelessWidget {
   final VoidCallback onNotificationTap;
+  final VoidCallback onHelpTap;
 
-  const _DashboardTopBar({required this.onNotificationTap});
+  const _DashboardTopBar({
+    required this.onNotificationTap,
+    required this.onHelpTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -455,6 +472,11 @@ class _DashboardTopBar extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.help_outline, color: Color(0xFF1E1E1E)),
+              onPressed: onHelpTap,
+              tooltip: 'Demo Guide',
             ),
             InkWell(
               borderRadius: BorderRadius.circular(16),
@@ -661,11 +683,46 @@ class DashboardGaugeCard extends StatefulWidget {
 class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
   final GeminiService _gemini = GeminiService();
   static final Map<String, Map<String, String>> _iconInfoCache = {};
+  Map<String, dynamic> _latestData = {};
+  
+  StreamSubscription<QuerySnapshot>? _subscription;
+  Timer? _uiUpdateTimer;
+  Map<String, dynamic> _pendingData = {};
 
   @override
   void initState() {
     super.initState();
     _loadIconInfo();
+    
+    // Subscribe to real-time updates
+    _subscription = FirebaseFirestore.instance
+        .collection('readings')
+        .doc(widget.deviceId)
+        .collection('stream')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      if (snap.docs.isNotEmpty) {
+        _pendingData = snap.docs.first.data() as Map<String, dynamic>;
+      }
+    });
+
+    // Throttle UI updates to every 2 seconds
+    _uiUpdateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (mounted && _pendingData.isNotEmpty) {
+        setState(() {
+          _latestData = _pendingData;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    _uiUpdateTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadIconInfo() async {
@@ -681,188 +738,125 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
     }
   }
 
-  IconData _getFaIcon(String name) {
-    switch (name.toLowerCase()) {
-      case 'faucet': return FontAwesomeIcons.faucet;
-      case 'shower': return FontAwesomeIcons.shower;
-      case 'bath': return FontAwesomeIcons.bath;
-      case 'toilet': return FontAwesomeIcons.toilet;
-      case 'droplet': return FontAwesomeIcons.droplet;
-      case 'flask': return FontAwesomeIcons.flask;
-      case 'soap': return FontAwesomeIcons.soap;
-      case 'jug-detergent': return FontAwesomeIcons.jugDetergent;
-      case 'fire-burner': return FontAwesomeIcons.fireBurner;
-      case 'blender': return FontAwesomeIcons.blender;
-      case 'utensils': return FontAwesomeIcons.utensils;
-      case 'warehouse': return FontAwesomeIcons.warehouse;
-      case 'industry': return FontAwesomeIcons.industry;
-      case 'plug': return FontAwesomeIcons.plug;
-      case 'gear': return FontAwesomeIcons.gear;
-      case 'bolt': return FontAwesomeIcons.bolt;
-      case 'leaf': return FontAwesomeIcons.leaf;
-      case 'seedling': return FontAwesomeIcons.seedling;
-      case 'car': return FontAwesomeIcons.car;
-      case 'truck': return FontAwesomeIcons.truck;
-      default: return FontAwesomeIcons.droplet;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('readings')
-          .doc(widget.deviceId)
-          .collection('stream')
-          .limit(1)
-          .snapshots(),
-      builder: (context, readingSnap) {
-        // 在記憶體中手動排序
-        final readingDocs = readingSnap.data?.docs ?? [];
-        final sortedDocs = [...readingDocs];
-        sortedDocs.sort((a, b) {
-          final aa = (a.data() as Map<String, dynamic>)['timestamp'];
-          final bb = (b.data() as Map<String, dynamic>)['timestamp'];
-          return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
-        });
+    final latest = _latestData;
 
-        final latest = sortedDocs.isNotEmpty
-            ? sortedDocs.first.data() as Map<String, dynamic>
-            : <String, dynamic>{};
+    final fields = (widget.schema['fields'] as List? ?? []).whereType<Map>();
+    final totalVal = _deviceTotalFlow(widget.schema, latest);
 
-        final fields = (widget.schema['fields'] as List? ?? []).whereType<Map>();
-        final totalVal = _deviceTotalFlow(widget.schema, latest);
-
-        return AppCard(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return AppCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.place,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-                      ),
-                      Text(widget.deviceId, style: const TextStyle(fontSize: 10, color: _scvMutedText)),
-                    ],
+                  Text(
+                    widget.place,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _scvPrimary,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(color: _scvPrimary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4)),
-                      ],
-                    ),
-                    child: Text(
-                      "${totalVal.toStringAsFixed(1)} mL/s",
-                      style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 16),
-                    ),
-                  ),
+                  Text(widget.deviceId, style: const TextStyle(fontSize: 10, color: _scvMutedText)),
                 ],
               ),
-              const SizedBox(height: 16),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3, // 改為一排三個，更像儀表群
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 0.75, // 調整比例讓方框變短
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _scvPrimary,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(color: _scvPrimary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4)),
+                  ],
                 ),
-                itemCount: fields.length,
-                itemBuilder: (context, fIdx) {
-                  final f = fields.elementAt(fIdx);
-                  final key = f['key']?.toString() ?? '';
-                  final info = _iconInfoCache[key] ?? {};
-                  final emoji = info['emoji'] ?? '💧';
-                  final faIconName = info['icon_name'] ?? 'droplet';
-                  final aiLabel = info['description'] ?? f['label'] ?? key;
-                  
-                  final val = _toDouble(latest[key]);
-                  final max = _toDouble(f['max_threshold']);
-                  final percent = (val / (max > 0 ? max : 100)).clamp(0.0, 1.0);
-                  final isDanger = percent > 0.8;
-
-                  return Container(
-                    padding: const EdgeInsets.all(6), // 極小邊距
-                    decoration: BoxDecoration(
-                      color: isDanger ? const Color(0xFFFFF2F2) : const Color(0xFFF7F9FF),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isDanger ? _scvDanger.withValues(alpha: 0.4) : _scvBorder),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 68, // 縮小圓圈以配合 3 欄佈局
-                          height: 68,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              CircularProgressIndicator(
-                                value: percent,
-                                strokeWidth: 7,
-                                strokeCap: StrokeCap.round,
-                                backgroundColor: Colors.white,
-                                valueColor: AlwaysStoppedAnimation(isDanger ? _scvDanger : _scvPrimary),
-                              ),
-                              Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      val.toStringAsFixed(0),
-                                      style: TextStyle(
-                                        fontSize: 22, // 配合小圓圈調整數字大小
-                                        fontWeight: FontWeight.w900,
-                                        color: isDanger ? _scvDanger : const Color(0xFF1A1A1A),
-                                        letterSpacing: -1,
-                                        height: 1.0,
-                                      ),
-                                    ),
-                                    Text(emoji, style: const TextStyle(fontSize: 10)),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          aiLabel,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: isDanger ? _scvDanger : _scvText,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          "${(percent * 100).toStringAsFixed(0)}%",
-                          style: TextStyle(
-                            fontSize: 9, 
-                            color: isDanger ? _scvDanger.withValues(alpha: 0.7) : _scvMutedText,
-                            fontWeight: FontWeight.w500
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                child: Text(
+                  "${totalVal.toStringAsFixed(1)} mL/s",
+                  style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 16),
+                ),
               ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: fields.map((f) {
+              final key = f['key']?.toString() ?? '';
+              final info = _iconInfoCache[key] ?? {};
+              final emoji = info['emoji'] ?? '💧';
+              final val = _toDouble(latest[key]);
+              final max = _toDouble(f['max_threshold']);
+              final percent = (val / (max > 0 ? max : 100)).clamp(0.0, 1.0);
+              final isDanger = percent > 0.8;
+
+              return Container(
+                width: 72, // Just enough for 60 + 6*2 padding
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isDanger ? const Color(0xFFFFF2F2) : const Color(0xFFF7F9FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDanger ? _scvDanger.withValues(alpha: 0.4) : _scvBorder),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 60, 
+                      height: 60,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CircularProgressIndicator(
+                            value: percent,
+                            strokeWidth: 6,
+                            strokeCap: StrokeCap.round,
+                            backgroundColor: Colors.white,
+                            valueColor: AlwaysStoppedAnimation(isDanger ? _scvDanger : _scvPrimary),
+                          ),
+                          Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  val.toStringAsFixed(0),
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w900,
+                                    color: isDanger ? _scvDanger : const Color(0xFF1A1A1A),
+                                    letterSpacing: -1,
+                                    height: 1.0,
+                                  ),
+                                ),
+                                Text(emoji, style: const TextStyle(fontSize: 10)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      info['description'] ?? f['label'] ?? key,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: isDanger ? _scvDanger : _scvText,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -959,6 +953,55 @@ class _DashboardChartFromFirestoreState
   final GeminiService _gemini = GeminiService();
   bool _optimizing = false;
   List<double>? _aiSuggestedSeries;
+  String _selectedInterval = '1m';
+  
+  StreamSubscription<QuerySnapshot>? _subscription;
+  QuerySnapshot? _latestSnapshot;
+  Timer? _uiUpdateTimer;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = FirebaseFirestore.instance
+        .collectionGroup('stream')
+        .limit(240)
+        .snapshots()
+        .listen((snap) {
+      _latestSnapshot = snap;
+      _error = null;
+    }, onError: (e) {
+      _error = e.toString();
+    });
+
+    _uiUpdateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (mounted && _latestSnapshot != null) {
+        setState(() {}); // Trigger rebuild every 2s
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    _uiUpdateTimer?.cancel();
+    super.dispose();
+  }
+
+  int _getBucket(int epochMillis, String interval) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(epochMillis);
+    switch (interval) {
+      case '1s':
+        return DateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second).millisecondsSinceEpoch;
+      case '1h':
+        return DateTime(dt.year, dt.month, dt.day, dt.hour).millisecondsSinceEpoch;
+      case '1d':
+        return DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch;
+      case '1m':
+      default:
+        return DateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute).millisecondsSinceEpoch;
+    }
+  }
 
   List<double>? _extractNumberList(String text) {
     try {
@@ -983,33 +1026,35 @@ class _DashboardChartFromFirestoreState
   }
 
   List<FlSpot> _buildRecommendedSpots(List<FlSpot> current) {
-    if (current.isEmpty) return const [FlSpot(0, 20), FlSpot(1, 20)];
-    final fallback = List.generate(
-      current.length,
-      (i) => FlSpot(i.toDouble(), 20),
-    );
     final ai = _aiSuggestedSeries;
-    if (ai == null || ai.isEmpty) return fallback;
-    return List.generate(current.length, (i) {
-      final sourceIndex = (i * ai.length / current.length).floor();
-      final safeIndex = sourceIndex.clamp(0, ai.length - 1);
-      return FlSpot(i.toDouble(), ai[safeIndex]);
+    if (ai == null || ai.isEmpty) return const [];
+    
+    final lastX = current.isNotEmpty ? current.last.x : 0.0;
+    
+    return List.generate(ai.length, (i) {
+      return FlSpot(lastX + i + 1, ai[i]);
     });
   }
 
   Future<void> _generateSuggestedCurve(List<FlSpot> current) async {
-    if (_optimizing || current.isEmpty) return;
+    if (_optimizing) return;
     setState(() => _optimizing = true);
     try {
-      final values = current.map((e) => e.y.toStringAsFixed(2)).join(', ');
+      final values = current.isEmpty ? '0' : current.map((e) => e.y.toStringAsFixed(2)).join(', ');
       final prompt =
           '''
-請根據這段用水曲線，產生「建議使用曲線」。
+請根據這段用水曲線和當前時間，預測未來的水量變化。
 需求：
-1) 回傳 JSON 陣列，內容僅數字（公升）
-2) 長度維持 ${current.length}
-3) 曲線需平滑，整體低於目前用量，且不要有負值
-4) 只回傳 JSON，不要其他文字
+1) 回傳 JSON 陣列，內容僅數字（單位為 mL/s）
+2) 長度為 24 小時（每小時 1 點）
+3) 考慮時間趨勢和季節性波動
+4) 如果沒有過去資料或資料不足，請以合理的常規用水量或 0 預測
+5) 只回傳 JSON，不要其他文字
+
+當前時間：${DateTime.now()}
+時間間隔：1 小時
+
+請預測未來 24 小時的用水趨勢。
 
 目前曲線：
 [$values]
@@ -1021,14 +1066,16 @@ class _DashboardChartFromFirestoreState
         throw Exception('AI 回傳格式無法解析');
       }
       setState(() {
-        _aiSuggestedSeries = parsed
-            .map((v) => v < 0 ? 0.0 : v.toDouble())
-            .toList();
+        final list = parsed.map((v) => v < 0 ? 0.0 : v.toDouble()).toList();
+        while (list.length < 24) {
+          list.add(0.0);
+        }
+        _aiSuggestedSeries = list;
       });
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('已生成建議使用曲線')));
+      ).showSnackBar(const SnackBar(content: Text('已生成未來 24 小時用水預測')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -1041,41 +1088,59 @@ class _DashboardChartFromFirestoreState
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collectionGroup('stream')
-          .limit(240)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return AppCard(
-            child: Text(
-              '圖表資料讀取失敗：${snapshot.error}',
-              style: const TextStyle(color: _scvDanger),
-            ),
-          );
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        // 在記憶體中進行排序以避免索引需求
-        final docs = [...snapshot.data!.docs];
-        docs.sort((a, b) {
-          final aa = (a.data() as Map<String, dynamic>)['timestamp'];
-          final bb = (b.data() as Map<String, dynamic>)['timestamp'];
-          return _toEpochMillis(aa).compareTo(_toEpochMillis(bb));
-        });
-        final spotsCurrent = <FlSpot>[];
+    if (_error != null) {
+      return AppCard(
+        child: Text(
+          '圖表資料讀取失敗：$_error',
+          style: const TextStyle(color: _scvDanger),
+        ),
+      );
+    }
+    if (_latestSnapshot == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final snapshot = _latestSnapshot!;
+    // 在記憶體中進行排序以避免索引需求
+    final docs = [...snapshot.docs];
+    docs.sort((a, b) {
+      final aa = (a.data() as Map<String, dynamic>)['timestamp'];
+      final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+      return _toEpochMillis(aa).compareTo(_toEpochMillis(bb));
+    });
+        final Map<int, List<double>> bucketFlows = {};
         for (int i = 0; i < docs.length; i++) {
           final data = docs[i].data() as Map<String, dynamic>;
+          final ts = data['timestamp'];
+          if (ts == null) continue;
+          final millis = _toEpochMillis(ts);
+          if (millis == 0) continue;
+
           final current =
               _toDouble(data['kitchen_flow']) +
               _toDouble(data['shower_flow']) +
               _toDouble(data['bathtub_flow']) +
               _toDouble(data['toilet_flow']);
-          spotsCurrent.add(FlSpot(i.toDouble(), current));
+
+          final bucket = _getBucket(millis, _selectedInterval);
+          bucketFlows.putIfAbsent(bucket, () => []).add(current);
+        }
+
+        final sortedBuckets = bucketFlows.keys.toList()..sort();
+        final spotsCurrent = <FlSpot>[];
+        for (int i = 0; i < sortedBuckets.length; i++) {
+          final flows = bucketFlows[sortedBuckets[i]]!;
+          final avgFlow = flows.reduce((a, b) => a + b) / flows.length;
+          spotsCurrent.add(FlSpot(i.toDouble(), avgFlow));
         }
         final spotsRecommended = _buildRecommendedSpots(spotsCurrent);
+        
+        // Ensure the recommended spots connect smoothly from the current spots
+        final allRecommendedSpots = <FlSpot>[];
+        if (spotsCurrent.isNotEmpty && spotsRecommended.isNotEmpty) {
+          allRecommendedSpots.add(spotsCurrent.last);
+        }
+        allRecommendedSpots.addAll(spotsRecommended);
 
         final maxY =
             [
@@ -1083,15 +1148,51 @@ class _DashboardChartFromFirestoreState
               ...spotsRecommended.map((e) => e.y),
             ].fold<double>(50.0, math.max) *
             1.15;
+            
+        final maxX = (spotsCurrent.length - 1 + spotsRecommended.length).toDouble();
 
         return AppCard(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Water Usage History',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Water Usage History',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  Row(
+                    children: ['1s', '1m', '1h', '1d'].map((val) {
+                      final isSelected = _selectedInterval == val;
+                      final label = val == '1s' ? '秒' : val == '1m' ? '分' : val == '1h' ? '時' : '天';
+                      return InkWell(
+                        onTap: () => setState(() {
+                          _selectedInterval = val;
+                          _aiSuggestedSeries = null; // 清除預測因為刻度改變
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          margin: const EdgeInsets.only(left: 4),
+                          decoration: BoxDecoration(
+                            color: isSelected ? _scvPrimarySoft : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: isSelected ? _scvPrimary : _scvBorder),
+                          ),
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isSelected ? _scvPrimary : _scvMutedText,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               Expanded(
@@ -1100,9 +1201,7 @@ class _DashboardChartFromFirestoreState
                     minY: 0,
                     maxY: maxY < 50 ? 50 : maxY,
                     minX: 0,
-                    maxX: spotsCurrent.isEmpty
-                        ? 1
-                        : (spotsCurrent.length - 1).toDouble(),
+                    maxX: maxX < 1 ? 1 : maxX,
                     gridData: FlGridData(
                       show: true,
                       drawVerticalLine: false,
@@ -1139,14 +1238,15 @@ class _DashboardChartFromFirestoreState
                         ),
                         dotData: const FlDotData(show: false),
                       ),
-                      LineChartBarData(
-                        spots: spotsRecommended,
-                        isCurved: true,
-                        barWidth: 3,
-                        color: const Color(0xFF7E7E7E),
-                        dashArray: [6, 4],
-                        dotData: const FlDotData(show: false),
-                      ),
+                      if (allRecommendedSpots.isNotEmpty)
+                        LineChartBarData(
+                          spots: allRecommendedSpots,
+                          isCurved: true,
+                          barWidth: 3,
+                          color: const Color(0xFF7E7E7E),
+                          dashArray: [6, 4],
+                          dotData: const FlDotData(show: false),
+                        ),
                     ],
                   ),
                 ),
@@ -1182,8 +1282,6 @@ class _DashboardChartFromFirestoreState
             ],
           ),
         );
-      },
-    );
   }
 }
 
@@ -3291,6 +3389,23 @@ class DeviceHistoryPage extends StatefulWidget {
 class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
   late Set<String> _selectedKeys;
   int _windowHours = 1;
+  int _updateSeconds = 30; // 預設每 30 秒更新
+
+  @override
+  void initState() {
+    super.initState();
+    final fields = (widget.schema['fields'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((f) => f['key']?.toString() ?? '')
+        .where((k) => k.isNotEmpty)
+        .toSet();
+    _selectedKeys = fields;
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
   String _readableHistoryError(Object error) {
     if (error is TimeoutException) {
@@ -3320,17 +3435,6 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
       sampled.add(docs.last);
     }
     return sampled;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    final fields = (widget.schema['fields'] as List<dynamic>? ?? [])
-        .whereType<Map>()
-        .map((f) => f['key']?.toString() ?? '')
-        .where((k) => k.isNotEmpty)
-        .toSet();
-    _selectedKeys = fields;
   }
 
   @override
@@ -3478,6 +3582,28 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                     label: const Text('7 天'),
                     selected: _windowHours == 168,
                     onSelected: (_) => setState(() => _windowHours = 168),
+                  ),
+                  // 更新間隔設定
+                  ChoiceChip(
+                    label: Text('${_updateSeconds} 秒更新'),
+                    selected: _updateSeconds == 30,
+                    onSelected: (_) => setState(() => _updateSeconds = 30),
+                  ),
+                  ChoiceChip(
+                    label: Text('30 秒更新'),
+                    selected: _updateSeconds == 60,
+                    onSelected: (_) => setState(() => _updateSeconds = 60),
+                  ),
+                  ChoiceChip(
+                    label: Text('1 分鐘更新'),
+                    selected: _updateSeconds == 120,
+                    onSelected: (_) => setState(() => _updateSeconds = 120),
+                  ),
+                  // 清空選擇
+                  OutlinedButton.icon(
+                    onPressed: () => setState(() => _windowHours = 1),
+                    icon: const Icon(Icons.undo),
+                    label: const Text('重置'),
                   ),
                 ],
               ),
@@ -3955,6 +4081,113 @@ class SiteDeviceMiniCard extends StatelessWidget {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _DemoGuideDialog extends StatefulWidget {
+  const _DemoGuideDialog();
+
+  @override
+  State<_DemoGuideDialog> createState() => _DemoGuideDialogState();
+}
+
+class _DemoGuideDialogState extends State<_DemoGuideDialog> {
+  int _step = 0;
+  final List<Map<String, String>> _steps = [
+    {
+      'title': 'Welcome to SCV Water!',
+      'content': 'This app helps you monitor water usage and optimize efficiency in real-time.',
+      'image': '🌊',
+    },
+    {
+      'title': 'Real-time Dashboard',
+      'content': 'View live data from all your sensors. Colors turn red when usage exceeds thresholds.',
+      'image': '📊',
+    },
+    {
+      'title': 'Smart Optimization',
+      'content': 'Use the AI-powered optimization tab to get suggestions on saving water and costs.',
+      'image': '💡',
+    },
+    {
+      'title': 'Device Management',
+      'content': 'Easily add new sensors or sites to your network from the management tabs.',
+      'image': '🔧',
+    },
+    {
+      'title': 'Stay Notified',
+      'content': 'Receive alerts when abnormal water flow is detected so you can act quickly.',
+      'image': '🔔',
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final stepData = _steps[_step];
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              stepData['image']!,
+              style: const TextStyle(fontSize: 60),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              stepData['title']!,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              stepData['content']!,
+              style: const TextStyle(fontSize: 16, color: Colors.black87),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (_step > 0)
+                  TextButton(
+                    onPressed: () => setState(() => _step--),
+                    child: const Text('Back'),
+                  )
+                else
+                  const SizedBox(width: 60),
+                Row(
+                  children: List.generate(
+                    _steps.length,
+                    (index) => Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _step == index ? _scvPrimary : Colors.grey.shade300,
+                      ),
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    if (_step < _steps.length - 1) {
+                      setState(() => _step++);
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: Text(_step == _steps.length - 1 ? 'Finish' : 'Next'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
