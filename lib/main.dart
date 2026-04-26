@@ -165,8 +165,92 @@ class WaterDashboardApp extends StatelessWidget {
     return MaterialApp(
       title: 'SCV Water Dashboard',
       theme: _buildScvTheme(),
-      home: const DashboardScreen(),
+      home: const _FirebaseAutoZeroFiller(child: DashboardScreen()),
     );
+  }
+}
+
+class _FirebaseAutoZeroFiller extends StatefulWidget {
+  final Widget child;
+  const _FirebaseAutoZeroFiller({required this.child});
+
+  @override
+  State<_FirebaseAutoZeroFiller> createState() => _FirebaseAutoZeroFillerState();
+}
+
+class _FirebaseAutoZeroFillerState extends State<_FirebaseAutoZeroFiller> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // 每分鐘檢查一次
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) => _checkAndFillZeros());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkAndFillZeros() async {
+    try {
+      final sensors = await FirebaseFirestore.instance.collection('sensors').get();
+      for (final sensorDoc in sensors.docs) {
+        final sensorData = sensorDoc.data();
+        final deviceId = sensorData['id']?.toString() ?? sensorDoc.id;
+        final schema = (sensorData['schema'] as Map?)?.cast<String, dynamic>() ?? {};
+
+        final readings = await FirebaseFirestore.instance
+            .collection('readings')
+            .doc(deviceId)
+            .collection('stream')
+            .orderBy('timestamp', descending: true)
+            .limit(1)
+            .get();
+
+        if (readings.docs.isEmpty) continue;
+
+        final latestDoc = readings.docs.first;
+        final latestData = latestDoc.data();
+        final ts = latestData['timestamp'];
+        final lastMillis = _toEpochMillis(ts);
+        final nowMillis = DateTime.now().millisecondsSinceEpoch;
+
+        // 如果超過 2 分鐘沒資料 (預設 stale 門檻)
+        if (nowMillis - lastMillis > 120000) {
+          final totalFlow = _deviceTotalFlow(schema, latestData);
+          // 如果最後一筆流量大於 0，則補一筆 0 以歸零
+          // 如果最後一筆已經是 0，則不補，以節省 quota
+          if (totalFlow > 0) {
+            final zeroData = <String, dynamic>{
+              'timestamp': FieldValue.serverTimestamp(),
+            };
+            final fields = (schema['fields'] as List? ?? []).whereType<Map>();
+            for (final f in fields) {
+              final key = f['key']?.toString();
+              if (key != null) {
+                zeroData[key] = 0.0;
+              }
+            }
+            await FirebaseFirestore.instance
+                .collection('readings')
+                .doc(deviceId)
+                .collection('stream')
+                .add(zeroData);
+            debugPrint('[_FirebaseAutoZeroFiller] Auto-supplemented zero reading for $deviceId');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[_FirebaseAutoZeroFiller] Error: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
 
@@ -3492,6 +3576,14 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
           final renderDocs = _downsampleDocs(snapshotDocs, maxRenderPoints);
           final isDownsampled = renderDocs.length < snapshotDocs.length;
 
+          // 檢查是否有數據，如果有數據，3 秒內沒有新數據就補零
+          final latestDoc = renderDocs.isNotEmpty
+              ? renderDocs.last.data() as Map<String, dynamic>
+              : null;
+          final latestTimestamp = latestDoc != null
+              ? latestDoc['timestamp'] as Timestamp?
+              : null;
+
           final colorPool = <Color>[
             _scvPrimary,
             const Color(0xFF6FE6B8),
@@ -3513,6 +3605,18 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                 spots.add(FlSpot(i.toDouble(), val.toDouble()));
               }
             }
+            
+            // 自動補零：如果 3 秒內沒有新數據，在數據前面添加零點
+            if (spots.isEmpty && latestTimestamp != null && DateTime.now().difference(latestTimestamp.toDate()).inSeconds > 3) {
+              // 添加零點
+              spots.add(FlSpot(-1.0, 0.0));
+            }
+            
+            // 確保至少有一個數據點
+            if (spots.isEmpty) {
+              spots.add(FlSpot(0.0, 0.0));
+            }
+            
             if (spots.isNotEmpty) {
               lines.add(
                 LineChartBarData(
