@@ -18,19 +18,35 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="SCV Water — smart building water monitoring">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="scv_water_dashboard">
+  <meta name="apple-mobile-web-app-title" content="SCV Water">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>scv_water_dashboard</title>
+  <title>SCV Water</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Serve CanvasKit from this origin instead of gstatic.com.
+
+    Without this, the app renders a blank white page on any machine whose DNS
+    resolves gstatic.com to an IPv6 address the browser cannot reach: the
+    engine bootstrap hangs, main() is never called, and no error is logged.
+    The files in web/canvaskit/ match the engine revision this app builds with
+    (Flutter 3.38.9, engine 587c18f873).
+  -->
+  <script>
+    window.flutterConfiguration = {
+      canvasKitBaseUrl: "canvaskit/",
+    };
+    window._flutter = window._flutter || {};
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -25,6 +25,7 @@ class _AddSitePageState extends State<AddSitePage> {
   final _nameController = TextEditingController();
   final _promptController = TextEditingController();
   final _descController = TextEditingController();
+  final _ipController = TextEditingController();
 
   bool _generating = false;
   bool _saving = false;
@@ -73,6 +74,7 @@ class _AddSitePageState extends State<AddSitePage> {
         'name': name,
         'description': _descController.text.trim(),
         'prompt': _promptController.text.trim(),
+        'ip': _ipController.text.trim(),
         'created_at': FieldValue.serverTimestamp(),
       });
       if (!mounted) return;
@@ -154,6 +156,17 @@ class _AddSitePageState extends State<AddSitePage> {
             maxLines: 8,
             decoration: const InputDecoration(
               labelText: '場域敘述',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('樹莓派連線設定', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _ipController,
+            decoration: const InputDecoration(
+              labelText: '樹莓派 IP',
+              helperText: '只需填 IP，連線憑證由部署服務持有',
               border: OutlineInputBorder(),
             ),
           ),

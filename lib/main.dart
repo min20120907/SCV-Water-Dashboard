@@ -12,10 +12,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'add_device_page.dart';
-import 'add_site_page.dart';
-import 'firebase_options.dart';
-import 'gemini_service.dart';
+import 'package:scv_water_dashboard/add_device_page.dart';
+import 'package:scv_water_dashboard/add_site_page.dart';
+import 'package:scv_water_dashboard/deploy_service.dart';
+import 'package:scv_water_dashboard/firebase_options.dart';
+import 'package:scv_water_dashboard/gemini_service.dart';
+import 'package:scv_water_dashboard/hardware_diagram_page.dart';
+import 'package:scv_water_dashboard/prophet_service.dart';
+
+// ✅ 編輯測試成功 - 2026-04-26
+// ✅ 自動補零功能已實現
 
 const _scvPrimary = Color(0xFF2F7BFF);
 const _scvPrimarySoft = Color(0xFFEAF2FF);
@@ -175,7 +181,8 @@ class _FirebaseAutoZeroFiller extends StatefulWidget {
   const _FirebaseAutoZeroFiller({required this.child});
 
   @override
-  State<_FirebaseAutoZeroFiller> createState() => _FirebaseAutoZeroFillerState();
+  State<_FirebaseAutoZeroFiller> createState() =>
+      _FirebaseAutoZeroFillerState();
 }
 
 class _FirebaseAutoZeroFillerState extends State<_FirebaseAutoZeroFiller> {
@@ -185,7 +192,10 @@ class _FirebaseAutoZeroFillerState extends State<_FirebaseAutoZeroFiller> {
   void initState() {
     super.initState();
     // 每分鐘檢查一次
-    _timer = Timer.periodic(const Duration(minutes: 1), (_) => _checkAndFillZeros());
+    _timer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _checkAndFillZeros(),
+    );
   }
 
   @override
@@ -196,11 +206,14 @@ class _FirebaseAutoZeroFillerState extends State<_FirebaseAutoZeroFiller> {
 
   Future<void> _checkAndFillZeros() async {
     try {
-      final sensors = await FirebaseFirestore.instance.collection('sensors').get();
+      final sensors = await FirebaseFirestore.instance
+          .collection('sensors')
+          .get();
       for (final sensorDoc in sensors.docs) {
         final sensorData = sensorDoc.data();
         final deviceId = sensorData['id']?.toString() ?? sensorDoc.id;
-        final schema = (sensorData['schema'] as Map?)?.cast<String, dynamic>() ?? {};
+        final schema =
+            (sensorData['schema'] as Map?)?.cast<String, dynamic>() ?? {};
 
         final readings = await FirebaseFirestore.instance
             .collection('readings')
@@ -239,7 +252,9 @@ class _FirebaseAutoZeroFillerState extends State<_FirebaseAutoZeroFiller> {
                 .doc(deviceId)
                 .collection('stream')
                 .add(zeroData);
-            debugPrint('[_FirebaseAutoZeroFiller] Auto-supplemented zero reading for $deviceId');
+            debugPrint(
+              '[_FirebaseAutoZeroFiller] Auto-supplemented zero reading for $deviceId',
+            );
           }
         }
       }
@@ -720,20 +735,25 @@ class _MiniSensorMonitoringList extends StatelessWidget {
           .limit(6)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
         final docs = snapshot.data!.docs;
-        if (docs.isEmpty) return const AppCard(child: Text('目前沒有感測器資料'));
+        if (docs.isEmpty) {
+          return const AppCard(child: Text('目前沒有感測器資料'));
+        }
 
         return ListView.separated(
           itemCount: docs.length,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          separatorBuilder: (_, __) => const SizedBox(height: 16),
+          separatorBuilder: (_, _) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
             final sensorDoc = docs[index];
             final data = sensorDoc.data() as Map<String, dynamic>;
             final deviceId = data['id']?.toString() ?? sensorDoc.id;
-            final schema = (data['schema'] as Map?)?.cast<String, dynamic>() ?? {};
+            final schema =
+                (data['schema'] as Map?)?.cast<String, dynamic>() ?? {};
             final place = data['place']?.toString() ?? '未命名區域';
 
             return DashboardGaugeCard(
@@ -768,7 +788,7 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
   final GeminiService _gemini = GeminiService();
   static final Map<String, Map<String, String>> _iconInfoCache = {};
   Map<String, dynamic> _latestData = {};
-  
+
   StreamSubscription<QuerySnapshot>? _subscription;
   Timer? _uiUpdateTimer;
   Map<String, dynamic> _pendingData = {};
@@ -777,7 +797,7 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
   void initState() {
     super.initState();
     _loadIconInfo();
-    
+
     // Subscribe to real-time updates
     _subscription = FirebaseFirestore.instance
         .collection('readings')
@@ -787,10 +807,10 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
         .limit(1)
         .snapshots()
         .listen((snap) {
-      if (snap.docs.isNotEmpty) {
-        _pendingData = snap.docs.first.data() as Map<String, dynamic>;
-      }
-    });
+          if (snap.docs.isNotEmpty) {
+            _pendingData = snap.docs.first.data();
+          }
+        });
 
     // Throttle UI updates to every 2 seconds
     _uiUpdateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
@@ -842,23 +862,40 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
                 children: [
                   Text(
                     widget.place,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                  Text(widget.deviceId, style: const TextStyle(fontSize: 10, color: _scvMutedText)),
+                  Text(
+                    widget.deviceId,
+                    style: const TextStyle(fontSize: 10, color: _scvMutedText),
+                  ),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: _scvPrimary,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
-                    BoxShadow(color: _scvPrimary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4)),
+                    BoxShadow(
+                      color: _scvPrimary.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
                 child: Text(
                   "${totalVal.toStringAsFixed(1)} mL/s",
-                  style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ],
@@ -880,16 +917,22 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
                 width: 72, // Just enough for 60 + 6*2 padding
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isDanger ? const Color(0xFFFFF2F2) : const Color(0xFFF7F9FF),
+                  color: isDanger
+                      ? const Color(0xFFFFF2F2)
+                      : const Color(0xFFF7F9FF),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isDanger ? _scvDanger.withValues(alpha: 0.4) : _scvBorder),
+                  border: Border.all(
+                    color: isDanger
+                        ? _scvDanger.withValues(alpha: 0.4)
+                        : _scvBorder,
+                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     SizedBox(
-                      width: 60, 
+                      width: 60,
                       height: 60,
                       child: Stack(
                         fit: StackFit.expand,
@@ -899,7 +942,9 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
                             strokeWidth: 6,
                             strokeCap: StrokeCap.round,
                             backgroundColor: Colors.white,
-                            valueColor: AlwaysStoppedAnimation(isDanger ? _scvDanger : _scvPrimary),
+                            valueColor: AlwaysStoppedAnimation(
+                              isDanger ? _scvDanger : _scvPrimary,
+                            ),
                           ),
                           Center(
                             child: Column(
@@ -910,12 +955,17 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
                                   style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.w900,
-                                    color: isDanger ? _scvDanger : const Color(0xFF1A1A1A),
+                                    color: isDanger
+                                        ? _scvDanger
+                                        : const Color(0xFF1A1A1A),
                                     letterSpacing: -1,
                                     height: 1.0,
                                   ),
                                 ),
-                                Text(emoji, style: const TextStyle(fontSize: 10)),
+                                Text(
+                                  emoji,
+                                  style: const TextStyle(fontSize: 10),
+                                ),
                               ],
                             ),
                           ),
@@ -1035,10 +1085,11 @@ class _DashboardChartFromFirestore extends StatefulWidget {
 class _DashboardChartFromFirestoreState
     extends State<_DashboardChartFromFirestore> {
   final GeminiService _gemini = GeminiService();
+  final ProphetService _prophet = ProphetService();
   bool _optimizing = false;
   List<double>? _aiSuggestedSeries;
   String _selectedInterval = '1m';
-  
+
   StreamSubscription<QuerySnapshot>? _subscription;
   QuerySnapshot? _latestSnapshot;
   Timer? _uiUpdateTimer;
@@ -1051,12 +1102,15 @@ class _DashboardChartFromFirestoreState
         .collectionGroup('stream')
         .limit(240)
         .snapshots()
-        .listen((snap) {
-      _latestSnapshot = snap;
-      _error = null;
-    }, onError: (e) {
-      _error = e.toString();
-    });
+        .listen(
+          (snap) {
+            _latestSnapshot = snap;
+            _error = null;
+          },
+          onError: (e) {
+            _error = e.toString();
+          },
+        );
 
     _uiUpdateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (mounted && _latestSnapshot != null) {
@@ -1076,14 +1130,32 @@ class _DashboardChartFromFirestoreState
     final dt = DateTime.fromMillisecondsSinceEpoch(epochMillis);
     switch (interval) {
       case '1s':
-        return DateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second).millisecondsSinceEpoch;
+        return DateTime(
+          dt.year,
+          dt.month,
+          dt.day,
+          dt.hour,
+          dt.minute,
+          dt.second,
+        ).millisecondsSinceEpoch;
       case '1h':
-        return DateTime(dt.year, dt.month, dt.day, dt.hour).millisecondsSinceEpoch;
+        return DateTime(
+          dt.year,
+          dt.month,
+          dt.day,
+          dt.hour,
+        ).millisecondsSinceEpoch;
       case '1d':
         return DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch;
       case '1m':
       default:
-        return DateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute).millisecondsSinceEpoch;
+        return DateTime(
+          dt.year,
+          dt.month,
+          dt.day,
+          dt.hour,
+          dt.minute,
+        ).millisecondsSinceEpoch;
     }
   }
 
@@ -1112,9 +1184,9 @@ class _DashboardChartFromFirestoreState
   List<FlSpot> _buildRecommendedSpots(List<FlSpot> current) {
     final ai = _aiSuggestedSeries;
     if (ai == null || ai.isEmpty) return const [];
-    
+
     final lastX = current.isNotEmpty ? current.last.x : 0.0;
-    
+
     return List.generate(ai.length, (i) {
       return FlSpot(lastX + i + 1, ai[i]);
     });
@@ -1124,42 +1196,37 @@ class _DashboardChartFromFirestoreState
     if (_optimizing) return;
     setState(() => _optimizing = true);
     try {
-      final values = current.isEmpty ? '0' : current.map((e) => e.y.toStringAsFixed(2)).join(', ');
-      final prompt =
-          '''
-請根據這段用水曲線和當前時間，預測未來的水量變化。
-需求：
-1) 回傳 JSON 陣列，內容僅數字（單位為 mL/s）
-2) 長度為 24 小時（每小時 1 點）
-3) 考慮時間趨勢和季節性波動
-4) 如果沒有過去資料或資料不足，請以合理的常規用水量或 0 預測
-5) 只回傳 JSON，不要其他文字
-
-當前時間：${DateTime.now()}
-時間間隔：1 小時
-
-請預測未來 24 小時的用水趨勢。
-
-目前曲線：
-[$values]
-''';
-
-      final response = await _gemini.ask(prompt, '圖表即時總用水序列，單位為 L。');
-      final parsed = _extractNumberList(response);
-      if (parsed == null || parsed.isEmpty) {
-        throw Exception('AI 回傳格式無法解析');
+      // Convert current spots to readings format for Prophet
+      // We need at least 48 data points for meaningful seasonality detection
+      final readings = <Map<String, dynamic>>[];
+      final now = DateTime.now();
+      for (int i = 0; i < current.length; i++) {
+        // Estimate timestamps: assume 1-minute intervals going back from now
+        final ts = now.subtract(Duration(minutes: current.length - i));
+        readings.add({
+          'timestamp': ts.millisecondsSinceEpoch,
+          'value': current[i].y,
+        });
       }
+
+      if (readings.length < 48) {
+        throw Exception('資料點不足（需要至少 48 筆），目前只有 ${readings.length} 筆');
+      }
+
+      final forecast = await _prophet.predict(
+        deviceId: 'dashboard_chart',
+        readings: readings,
+        horizonHours: 24,
+        intervalMinutes: _selectedInterval == '1h' ? 60 : 1,
+      );
+
       setState(() {
-        final list = parsed.map((v) => v < 0 ? 0.0 : v.toDouble()).toList();
-        while (list.length < 24) {
-          list.add(0.0);
-        }
-        _aiSuggestedSeries = list;
+        _aiSuggestedSeries = forecast.forecast.map((f) => f.yhat).toList();
       });
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('已生成未來 24 小時用水預測')));
+      ).showSnackBar(const SnackBar(content: Text('已生成未來 24 小時用水預測 (Prophet)')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -1192,180 +1259,193 @@ class _DashboardChartFromFirestoreState
       final bb = (b.data() as Map<String, dynamic>)['timestamp'];
       return _toEpochMillis(aa).compareTo(_toEpochMillis(bb));
     });
-        final Map<int, List<double>> bucketFlows = {};
-        for (int i = 0; i < docs.length; i++) {
-          final data = docs[i].data() as Map<String, dynamic>;
-          final ts = data['timestamp'];
-          if (ts == null) continue;
-          final millis = _toEpochMillis(ts);
-          if (millis == 0) continue;
+    final Map<int, List<double>> bucketFlows = {};
+    for (int i = 0; i < docs.length; i++) {
+      final data = docs[i].data() as Map<String, dynamic>;
+      final ts = data['timestamp'];
+      if (ts == null) continue;
+      final millis = _toEpochMillis(ts);
+      if (millis == 0) continue;
 
-          final current =
-              _toDouble(data['kitchen_flow']) +
-              _toDouble(data['shower_flow']) +
-              _toDouble(data['bathtub_flow']) +
-              _toDouble(data['toilet_flow']);
+      final current =
+          _toDouble(data['kitchen_flow']) +
+          _toDouble(data['shower_flow']) +
+          _toDouble(data['bathtub_flow']) +
+          _toDouble(data['toilet_flow']);
 
-          final bucket = _getBucket(millis, _selectedInterval);
-          bucketFlows.putIfAbsent(bucket, () => []).add(current);
-        }
+      final bucket = _getBucket(millis, _selectedInterval);
+      bucketFlows.putIfAbsent(bucket, () => []).add(current);
+    }
 
-        final sortedBuckets = bucketFlows.keys.toList()..sort();
-        final spotsCurrent = <FlSpot>[];
-        for (int i = 0; i < sortedBuckets.length; i++) {
-          final flows = bucketFlows[sortedBuckets[i]]!;
-          final avgFlow = flows.reduce((a, b) => a + b) / flows.length;
-          spotsCurrent.add(FlSpot(i.toDouble(), avgFlow));
-        }
-        final spotsRecommended = _buildRecommendedSpots(spotsCurrent);
-        
-        // Ensure the recommended spots connect smoothly from the current spots
-        final allRecommendedSpots = <FlSpot>[];
-        if (spotsCurrent.isNotEmpty && spotsRecommended.isNotEmpty) {
-          allRecommendedSpots.add(spotsCurrent.last);
-        }
-        allRecommendedSpots.addAll(spotsRecommended);
+    final sortedBuckets = bucketFlows.keys.toList()..sort();
+    final spotsCurrent = <FlSpot>[];
+    for (int i = 0; i < sortedBuckets.length; i++) {
+      final flows = bucketFlows[sortedBuckets[i]]!;
+      final avgFlow = flows.reduce((a, b) => a + b) / flows.length;
+      spotsCurrent.add(FlSpot(i.toDouble(), avgFlow));
+    }
+    final spotsRecommended = _buildRecommendedSpots(spotsCurrent);
 
-        final maxY =
-            [
-              ...spotsCurrent.map((e) => e.y),
-              ...spotsRecommended.map((e) => e.y),
-            ].fold<double>(50.0, math.max) *
-            1.15;
-            
-        final maxX = (spotsCurrent.length - 1 + spotsRecommended.length).toDouble();
+    // Ensure the recommended spots connect smoothly from the current spots
+    final allRecommendedSpots = <FlSpot>[];
+    if (spotsCurrent.isNotEmpty && spotsRecommended.isNotEmpty) {
+      allRecommendedSpots.add(spotsCurrent.last);
+    }
+    allRecommendedSpots.addAll(spotsRecommended);
 
-        return AppCard(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final maxY =
+        [
+          ...spotsCurrent.map((e) => e.y),
+          ...spotsRecommended.map((e) => e.y),
+        ].fold<double>(50.0, math.max) *
+        1.15;
+
+    final maxX = (spotsCurrent.length - 1 + spotsRecommended.length).toDouble();
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              const Text(
+                'Water Usage History',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Water Usage History',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  Row(
-                    children: ['1s', '1m', '1h', '1d'].map((val) {
-                      final isSelected = _selectedInterval == val;
-                      final label = val == '1s' ? '秒' : val == '1m' ? '分' : val == '1h' ? '時' : '天';
-                      return InkWell(
-                        onTap: () => setState(() {
-                          _selectedInterval = val;
-                          _aiSuggestedSeries = null; // 清除預測因為刻度改變
-                        }),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          margin: const EdgeInsets.only(left: 4),
-                          decoration: BoxDecoration(
-                            color: isSelected ? _scvPrimarySoft : Colors.transparent,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: isSelected ? _scvPrimary : _scvBorder),
-                          ),
-                          child: Text(
-                            label,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isSelected ? _scvPrimary : _scvMutedText,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                            ),
-                          ),
+                children: ['1s', '1m', '1h', '1d'].map((val) {
+                  final isSelected = _selectedInterval == val;
+                  final label = val == '1s'
+                      ? '秒'
+                      : val == '1m'
+                      ? '分'
+                      : val == '1h'
+                      ? '時'
+                      : '天';
+                  return InkWell(
+                    onTap: () => setState(() {
+                      _selectedInterval = val;
+                      _aiSuggestedSeries = null; // 清除預測因為刻度改變
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      margin: const EdgeInsets.only(left: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? _scvPrimarySoft
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isSelected ? _scvPrimary : _scvBorder,
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: LineChart(
-                  LineChartData(
-                    minY: 0,
-                    maxY: maxY < 50 ? 50 : maxY,
-                    minX: 0,
-                    maxX: maxX < 1 ? 1 : maxX,
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      getDrawingHorizontalLine: (_) => const FlLine(
-                        color: Color(0x80E6E6E6),
-                        strokeWidth: 1,
                       ),
-                    ),
-                    borderData: FlBorderData(
-                      show: true,
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                    ),
-                    titlesData: const FlTitlesData(
-                      topTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                    ),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: spotsCurrent,
-                        isCurved: true,
-                        barWidth: 3,
-                        color: const Color(0xFF2D6EFF),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          gradient: const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Color(0x262D6EFF), Color(0x002D6EFF)],
-                          ),
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isSelected ? _scvPrimary : _scvMutedText,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
                         ),
-                        dotData: const FlDotData(show: false),
                       ),
-                      if (allRecommendedSpots.isNotEmpty)
-                        LineChartBarData(
-                          spots: allRecommendedSpots,
-                          isCurved: true,
-                          barWidth: 3,
-                          color: const Color(0xFF7E7E7E),
-                          dashArray: [6, 4],
-                          dotData: const FlDotData(show: false),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  onPressed: _optimizing
-                      ? null
-                      : () => _generateSuggestedCurve(spotsCurrent),
-                  icon: _optimizing
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome, size: 16),
-                  label: Text(_optimizing ? '生成中...' : '現在優化'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _scvPrimary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
+                  );
+                }).toList(),
               ),
             ],
           ),
-        );
+          const SizedBox(height: 8),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                minY: 0,
+                maxY: maxY < 50 ? 50 : maxY,
+                minX: 0,
+                maxX: maxX < 1 ? 1 : maxX,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) =>
+                      const FlLine(color: Color(0x80E6E6E6), strokeWidth: 1),
+                ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(color: const Color(0xFFE0E0E0)),
+                ),
+                titlesData: const FlTitlesData(
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spotsCurrent,
+                    isCurved: true,
+                    barWidth: 3,
+                    color: const Color(0xFF2D6EFF),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0x262D6EFF), Color(0x002D6EFF)],
+                      ),
+                    ),
+                    dotData: const FlDotData(show: false),
+                  ),
+                  if (allRecommendedSpots.isNotEmpty)
+                    LineChartBarData(
+                      spots: allRecommendedSpots,
+                      isCurved: true,
+                      barWidth: 3,
+                      color: const Color(0xFF7E7E7E),
+                      dashArray: [6, 4],
+                      dotData: const FlDotData(show: false),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: _optimizing
+                  ? null
+                  : () => _generateSuggestedCurve(spotsCurrent),
+              icon: _optimizing
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.insights, size: 16),
+              label: Text(_optimizing ? '生成中...' : 'Prophet 預測'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _scvPrimary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1378,7 +1458,7 @@ class TemplateSelectionPage extends StatefulWidget {
 
 class _TemplateSelectionPageState extends State<TemplateSelectionPage> {
   String _keyword = '';
-  
+
   final List<Map<String, dynamic>> _categories = [
     {
       'title': 'Industrial & Manufacturing',
@@ -1386,24 +1466,24 @@ class _TemplateSelectionPageState extends State<TemplateSelectionPage> {
       'color': Colors.blueGrey,
       'items': [
         {
-          'name': 'Textile Dyeing Plant', 
-          'desc': 'High-volume water usage for dyeing and finishing.', 
+          'name': 'Textile Dyeing Plant',
+          'desc': 'High-volume water usage for dyeing and finishing.',
           'prompt': '自動化染整線、包含冷卻水塔與廢水回收系統、需監控 pH 值與濁度。',
-          'icon': Icons.opacity
+          'icon': Icons.opacity,
         },
         {
-          'name': 'Beverage Bottling Line', 
-          'desc': 'Precision monitoring for CIP and ingredient water.', 
+          'name': 'Beverage Bottling Line',
+          'desc': 'Precision monitoring for CIP and ingredient water.',
           'prompt': '食品級生產線、包含 CIP (原地清洗) 系統、需嚴格監控沖洗水量與廢水比。',
-          'icon': Icons.local_drink
+          'icon': Icons.local_drink,
         },
         {
-          'name': 'Semiconductor Fab', 
-          'desc': 'Ultra-pure water (UPW) system monitoring.', 
+          'name': 'Semiconductor Fab',
+          'desc': 'Ultra-pure water (UPW) system monitoring.',
           'prompt': '高科技廠房、超純水系統、包含多階過濾與回收、需監控漏水敏感度極高。',
-          'icon': Icons.memory
+          'icon': Icons.memory,
         },
-      ]
+      ],
     },
     {
       'title': 'Commercial & Infrastructure',
@@ -1411,24 +1491,24 @@ class _TemplateSelectionPageState extends State<TemplateSelectionPage> {
       'color': Colors.orange,
       'items': [
         {
-          'name': 'Data Center Cooling', 
-          'desc': 'WUE (Water Usage Effectiveness) tracking.', 
+          'name': 'Data Center Cooling',
+          'desc': 'WUE (Water Usage Effectiveness) tracking.',
           'prompt': '資料中心機房、主要為冷卻主機用水、需計算 PUE/WUE、監控蒸發與排放比。',
-          'icon': Icons.dns
+          'icon': Icons.dns,
         },
         {
-          'name': 'Hospital Medical Center', 
-          'desc': 'Critical water supply for sterilization and HVAC.', 
+          'name': 'Hospital Medical Center',
+          'desc': 'Critical water supply for sterilization and HVAC.',
           'prompt': '大型醫療機構、包含手術室消毒與中央空調用水、需 24/7 穩定供水監測。',
-          'icon': Icons.local_hospital
+          'icon': Icons.local_hospital,
         },
         {
-          'name': 'Shopping Mall Complex', 
-          'desc': 'High-traffic restroom and AHU monitoring.', 
+          'name': 'Shopping Mall Complex',
+          'desc': 'High-traffic restroom and AHU monitoring.',
           'prompt': '大型商場、主要用水為公廁與空調箱、尖峰時段流量波動大、需監控漏損。',
-          'icon': Icons.storefront
+          'icon': Icons.storefront,
         },
-      ]
+      ],
     },
     {
       'title': 'Smart Agriculture',
@@ -1436,18 +1516,18 @@ class _TemplateSelectionPageState extends State<TemplateSelectionPage> {
       'color': Colors.green,
       'items': [
         {
-          'name': 'Hydroponic Vertical Farm', 
-          'desc': 'Recirculating nutrient solution monitoring.', 
+          'name': 'Hydroponic Vertical Farm',
+          'desc': 'Recirculating nutrient solution monitoring.',
           'prompt': '室內垂直農場、水耕養液循環系統、需精確監控蒸散量與自動補水頻率。',
-          'icon': Icons.wb_sunny
+          'icon': Icons.wb_sunny,
         },
         {
-          'name': 'Vineyard Drip Irrigation', 
-          'desc': 'Evapotranspiration-based smart irrigation.', 
+          'name': 'Vineyard Drip Irrigation',
+          'desc': 'Evapotranspiration-based smart irrigation.',
           'prompt': '戶外葡萄園、滴灌系統、結合氣象數據、監控分區供水壓力與土壤濕度回饋。',
-          'icon': Icons.grass
+          'icon': Icons.grass,
         },
-      ]
+      ],
     },
     {
       'title': 'Residential & Hospitality',
@@ -1455,18 +1535,18 @@ class _TemplateSelectionPageState extends State<TemplateSelectionPage> {
       'color': Colors.blue,
       'items': [
         {
-          'name': 'Luxury Smart Villa', 
-          'desc': 'Multi-zone indoor and outdoor management.', 
+          'name': 'Luxury Smart Villa',
+          'desc': 'Multi-zone indoor and outdoor management.',
           'prompt': '私人別墅、包含景觀泳池、智慧草坪灌溉與室內生活用水、需分區統計。',
-          'icon': Icons.villa
+          'icon': Icons.villa,
         },
         {
-          'name': 'Eco-Friendly Resort', 
-          'desc': 'Greywater harvesting and reuse system.', 
+          'name': 'Eco-Friendly Resort',
+          'desc': 'Greywater harvesting and reuse system.',
           'prompt': '綠色渡假村、包含雨水回收系統與中水處理、需監控回收水使用比例。',
-          'icon': Icons.holiday_village
+          'icon': Icons.holiday_village,
         },
-      ]
+      ],
     },
   ];
 
@@ -1490,10 +1570,17 @@ class _TemplateSelectionPageState extends State<TemplateSelectionPage> {
               itemBuilder: (context, idx) {
                 final cat = _categories[idx];
                 final items = cat['items'] as List<Map<String, dynamic>>;
-                final filteredItems = items.where((i) => 
-                  i['name'].toString().toLowerCase().contains(_keyword.toLowerCase()) ||
-                  i['desc'].toString().toLowerCase().contains(_keyword.toLowerCase())
-                ).toList();
+                final filteredItems = items
+                    .where(
+                      (i) =>
+                          i['name'].toString().toLowerCase().contains(
+                            _keyword.toLowerCase(),
+                          ) ||
+                          i['desc'].toString().toLowerCase().contains(
+                            _keyword.toLowerCase(),
+                          ),
+                    )
+                    .toList();
 
                 if (filteredItems.isEmpty) return const SizedBox.shrink();
 
@@ -1504,68 +1591,88 @@ class _TemplateSelectionPageState extends State<TemplateSelectionPage> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Row(
                         children: [
-                          Icon(cat['icon'] as IconData, color: cat['color'] as Color, size: 20),
+                          Icon(
+                            cat['icon'] as IconData,
+                            color: cat['color'] as Color,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             cat['title'] as String,
                             style: TextStyle(
-                              fontSize: 14, 
-                              fontWeight: FontWeight.bold, 
-                              color: cat['color'] as Color
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: cat['color'] as Color,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    ...filteredItems.map((item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AddSitePage(
-                                initialName: item['name'] as String,
-                                initialDescription: item['desc'] as String,
-                                initialPrompt: item['prompt'] as String,
+                    ...filteredItems.map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AddSitePage(
+                                  initialName: item['name'] as String,
+                                  initialDescription: item['desc'] as String,
+                                  initialPrompt: item['prompt'] as String,
+                                ),
                               ),
+                            );
+                          },
+                          child: AppCard(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: (cat['color'] as Color).withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    item['icon'] as IconData,
+                                    color: cat['color'] as Color,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item['name'] as String,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        item['desc'] as String,
+                                        style: TextStyle(
+                                          color: _scvMutedText,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                _buildActionButtons(
+                                  item: item,
+                                  cardColor: cat['color'] as Color,
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                        child: AppCard(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: (cat['color'] as Color).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(item['icon'] as IconData, color: cat['color'] as Color),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item['name'] as String,
-                                      style: const TextStyle(fontWeight: FontWeight.w700),
-                                    ),
-                                    Text(
-                                      item['desc'] as String,
-                                      style: TextStyle(color: _scvMutedText, fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.add_circle_outline, color: _scvPrimary, size: 20),
-                            ],
                           ),
                         ),
                       ),
-                    )),
+                    ),
                     const SizedBox(height: 8),
                   ],
                 );
@@ -1574,6 +1681,16 @@ class _TemplateSelectionPageState extends State<TemplateSelectionPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildActionButtons({
+    required Map<String, dynamic> item,
+    required Color cardColor,
+  }) {
+    return Icon(
+      Icons.chevron_right_rounded,
+      color: cardColor.withValues(alpha: 0.5),
     );
   }
 }
@@ -1603,27 +1720,29 @@ class _OptimizePageState extends State<OptimizePage> {
           .collectionGroup('stream')
           .limit(20)
           .get();
-      
+
       String contextData = '無數據';
       if (snap.docs.isNotEmpty) {
         // 在記憶體中手動排序
         final sortedDocs = [...snap.docs];
         sortedDocs.sort((a, b) {
-          final aa = (a.data() as Map<String, dynamic>)['timestamp'];
-          final bb = (b.data() as Map<String, dynamic>)['timestamp'];
+          final aa = (a.data())['timestamp'];
+          final bb = (b.data())['timestamp'];
           return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
         });
 
-        contextData = sortedDocs.map((d) {
-          final data = Map<String, dynamic>.from(d.data() as Map<String, dynamic>);
-          // 處理 Timestamp 無法 JSON 序列化的問題
-          data.forEach((key, value) {
-            if (value is Timestamp) {
-              data[key] = value.toDate().toIso8601String();
-            }
-          });
-          return "${data['timestamp'] ?? ''}: ${jsonEncode(data)}";
-        }).join('\n');
+        contextData = sortedDocs
+            .map((d) {
+              final data = Map<String, dynamic>.from(d.data());
+              // 處理 Timestamp 無法 JSON 序列化的問題
+              data.forEach((key, value) {
+                if (value is Timestamp) {
+                  data[key] = value.toDate().toIso8601String();
+                }
+              });
+              return "${data['timestamp'] ?? ''}: ${jsonEncode(data)}";
+            })
+            .join('\n');
       }
 
       final advice = await _gemini.getOptimizationTips(contextData);
@@ -1655,7 +1774,10 @@ class _OptimizePageState extends State<OptimizePage> {
           AppCard(
             child: Row(
               children: const [
-                Icon(Icons.tips_and_updates_outlined, color: Colors.orangeAccent),
+                Icon(
+                  Icons.tips_and_updates_outlined,
+                  color: Colors.orangeAccent,
+                ),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1673,11 +1795,18 @@ class _OptimizePageState extends State<OptimizePage> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.auto_awesome, color: _scvPrimary, size: 20),
+                    const Icon(
+                      Icons.auto_awesome,
+                      color: _scvPrimary,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     const Text(
                       'AI 智慧優化建議',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
                     ),
                     const Spacer(),
                     if (_loading)
@@ -2158,7 +2287,9 @@ class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
               .limit(1200)
               .snapshots(),
           builder: (context, readingSnap) {
-            if (readingSnap.hasError) return Center(child: Text("讀取失敗: ${readingSnap.error}"));
+            if (readingSnap.hasError) {
+              return Center(child: Text("讀取失敗: ${readingSnap.error}"));
+            }
             final docs = readingSnap.data?.docs ?? [];
             // 在記憶體中手動排序，避免索引報報錯
             final sortedDocs = [...docs];
@@ -2375,10 +2506,12 @@ class _PostAnalysisTabState extends State<PostAnalysisTab> {
         final sensor = sensorDoc.data();
         // 優先讀取 place，若無則讀取 id，再無則使用 docId
         final deviceId = sensor['id']?.toString() ?? sensorDoc.id;
-        final place = (sensor['place']?.toString().isNotEmpty == true) 
-            ? sensor['place'] 
-            : (sensor['name']?.toString().isNotEmpty == true ? sensor['name'] : ' 區域 $deviceId');
-        
+        final place = (sensor['place']?.toString().isNotEmpty == true)
+            ? sensor['place']
+            : (sensor['name']?.toString().isNotEmpty == true
+                  ? sensor['name']
+                  : ' 區域 $deviceId');
+
         final query = await FirebaseFirestore.instance
             .collection('readings')
             .doc(deviceId)
@@ -2991,7 +3124,7 @@ class _DeviceLatestView extends StatelessWidget {
           final bb = (b.data() as Map<String, dynamic>)['timestamp'];
           return _toEpochMillis(bb).compareTo(_toEpochMillis(aa));
         });
-        
+
         final latest = sortedDocs.first.data() as Map<String, dynamic>;
         return _buildContent(latest);
       },
@@ -3257,7 +3390,9 @@ class _SiteManagementTabState extends State<SiteManagementTab> {
                   .limit(1200)
                   .snapshots(),
               builder: (context, readingSnap) {
-                if (readingSnap.hasError) return Center(child: Text("讀取失敗: ${readingSnap.error}"));
+                if (readingSnap.hasError) {
+                  return Center(child: Text("讀取失敗: ${readingSnap.error}"));
+                }
                 final readingDocs = readingSnap.data?.docs ?? [];
                 // 在記憶體中手動排序，避免索引報錯
                 final sortedReadingDocs = [...readingDocs];
@@ -3417,9 +3552,77 @@ class _SiteManagementTabState extends State<SiteManagementTab> {
                                 onSelected: (v) async {
                                   if (v == 'delete') {
                                     await _deleteSite(docId, id, name);
+                                  } else if (v == 'hardware_diagram') {
+                                    // Runs after deployment: the diagram is
+                                    // rendered by the middle service, which owns
+                                    // Fritzing + the LLM keys.
+                                    final sensors = sensorDocs
+                                        .where((s) {
+                                          final data = s.data()
+                                              as Map<String, dynamic>;
+                                          return data['site_id']?.toString() ==
+                                              id;
+                                        })
+                                        .map((s) {
+                                          final data = s.data()
+                                              as Map<String, dynamic>;
+                                          final schema =
+                                              (data['schema'] as Map?)
+                                                      ?.cast<String,
+                                                          dynamic>() ??
+                                                  <String, dynamic>{};
+                                          return <String, dynamic>{
+                                            'model':
+                                                schema['type_id']?.toString() ??
+                                                    data['type']?.toString() ??
+                                                    '',
+                                            'name':
+                                                data['name']?.toString() ??
+                                                    data['id']?.toString() ??
+                                                    'sensor',
+                                            'pins':
+                                                (schema['fields'] as List?)
+                                                    ?.map((f) => f['key']
+                                                            .toString())
+                                                    .toList(),
+                                          };
+                                        })
+                                        .toList();
+                                    if (!context.mounted) return;
+                                    if (sensors.isEmpty) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            '此場域還沒有裝置，請先新增感測器',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => HardwareDiagramPage(
+                                          siteId: id,
+                                          siteName: name,
+                                          sensors: sensors,
+                                          deployService: DeployService(),
+                                        ),
+                                      ),
+                                    );
                                   }
                                 },
                                 itemBuilder: (context) => const [
+                                  PopupMenuItem(
+                                    value: 'hardware_diagram',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.cable, size: 18),
+                                        SizedBox(width: 8),
+                                        Text('生成硬體安裝圖'),
+                                      ],
+                                    ),
+                                  ),
                                   PopupMenuItem(
                                     value: 'delete',
                                     child: Text('刪除場域'),
@@ -3605,18 +3808,21 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                 spots.add(FlSpot(i.toDouble(), val.toDouble()));
               }
             }
-            
+
             // 自動補零：如果 3 秒內沒有新數據，在數據前面添加零點
-            if (spots.isEmpty && latestTimestamp != null && DateTime.now().difference(latestTimestamp.toDate()).inSeconds > 3) {
+            if (spots.isEmpty &&
+                latestTimestamp != null &&
+                DateTime.now().difference(latestTimestamp.toDate()).inSeconds >
+                    3) {
               // 添加零點
               spots.add(FlSpot(-1.0, 0.0));
             }
-            
+
             // 確保至少有一個數據點
             if (spots.isEmpty) {
               spots.add(FlSpot(0.0, 0.0));
             }
-            
+
             if (spots.isNotEmpty) {
               lines.add(
                 LineChartBarData(
@@ -3689,7 +3895,7 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                   ),
                   // 更新間隔設定
                   ChoiceChip(
-                    label: Text('${_updateSeconds} 秒更新'),
+                    label: Text('$_updateSeconds 秒更新'),
                     selected: _updateSeconds == 30,
                     onSelected: (_) => setState(() => _updateSeconds = 30),
                   ),
@@ -3822,7 +4028,10 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
                                     ? math.max(1, snapshotDocs.length / 4)
                                     : (_windowHours == 24
                                           ? math.max(1, snapshotDocs.length / 6)
-                                          : math.max(1, snapshotDocs.length / 7)),
+                                          : math.max(
+                                              1,
+                                              snapshotDocs.length / 7,
+                                            )),
                                 getTitlesWidget: (value, meta) {
                                   final idx = value.round();
                                   if (idx < 0 || idx >= renderDocs.length) {
@@ -3905,7 +4114,9 @@ class SiteDetailPage extends StatelessWidget {
                 .limit(1200)
                 .snapshots(),
             builder: (context, readingSnap) {
-              if (readingSnap.hasError) return Center(child: Text("讀取失敗: ${readingSnap.error}"));
+              if (readingSnap.hasError) {
+                return Center(child: Text("讀取失敗: ${readingSnap.error}"));
+              }
               final readingDocs = readingSnap.data?.docs ?? [];
               // 在記憶體中手動排序，避免索引報錯
               final sortedDocs = [...readingDocs];
@@ -3947,7 +4158,9 @@ class SiteDetailPage extends StatelessWidget {
                 final ab =
                     ((b['abnormal'] as bool) ? 1 : 0) -
                     ((a['abnormal'] as bool) ? 1 : 0);
-                if (ab != 0) return ab;
+                if (ab != 0) {
+                  return ab;
+                }
                 return (b['flow'] as double).compareTo(a['flow'] as double);
               });
 
@@ -4203,27 +4416,32 @@ class _DemoGuideDialogState extends State<_DemoGuideDialog> {
   final List<Map<String, String>> _steps = [
     {
       'title': 'Welcome to SCV Water!',
-      'content': 'This app helps you monitor water usage and optimize efficiency in real-time.',
+      'content':
+          'This app helps you monitor water usage and optimize efficiency in real-time.',
       'image': '🌊',
     },
     {
       'title': 'Real-time Dashboard',
-      'content': 'View live data from all your sensors. Colors turn red when usage exceeds thresholds.',
+      'content':
+          'View live data from all your sensors. Colors turn red when usage exceeds thresholds.',
       'image': '📊',
     },
     {
       'title': 'Smart Optimization',
-      'content': 'Use the AI-powered optimization tab to get suggestions on saving water and costs.',
+      'content':
+          'Use the AI-powered optimization tab to get suggestions on saving water and costs.',
       'image': '💡',
     },
     {
       'title': 'Device Management',
-      'content': 'Easily add new sensors or sites to your network from the management tabs.',
+      'content':
+          'Easily add new sensors or sites to your network from the management tabs.',
       'image': '🔧',
     },
     {
       'title': 'Stay Notified',
-      'content': 'Receive alerts when abnormal water flow is detected so you can act quickly.',
+      'content':
+          'Receive alerts when abnormal water flow is detected so you can act quickly.',
       'image': '🔔',
     },
   ];
@@ -4238,10 +4456,7 @@ class _DemoGuideDialogState extends State<_DemoGuideDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              stepData['image']!,
-              style: const TextStyle(fontSize: 60),
-            ),
+            Text(stepData['image']!, style: const TextStyle(fontSize: 60)),
             const SizedBox(height: 16),
             Text(
               stepData['title']!,
@@ -4274,7 +4489,9 @@ class _DemoGuideDialogState extends State<_DemoGuideDialog> {
                       height: 8,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _step == index ? _scvPrimary : Colors.grey.shade300,
+                        color: _step == index
+                            ? _scvPrimary
+                            : Colors.grey.shade300,
                       ),
                     ),
                   ),

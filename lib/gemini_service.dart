@@ -205,6 +205,110 @@ class GeminiService {
     }
   }
 
+  /// Generate a hardware installation guide for connecting a sensor to Raspberry Pi.
+  /// Returns a structured guide with sections for UI rendering.
+  Future<Map<String, dynamic>> generateHardwareGuide({
+    required String sensorDescription,
+    required String protocol,
+    required Map<String, dynamic>? schema,
+  }) async {
+    try {
+      final fields = schema?['fields'] as List<dynamic>? ?? [];
+      final fieldSummary = fields
+          .map((f) {
+            final key = f['key']?.toString() ?? '';
+            final label = f['label']?.toString() ?? '';
+            final unit = f['unit']?.toString() ?? '';
+            return '- $label ($key): $unit';
+          })
+          .join('\n');
+
+      final response = await _model.generateContent([
+        Content.text('''
+你是一位 IoT 硬體安裝工程師。請根據以下感測器規格，產生一份「繁體中文」的樹莓派安裝指南。
+
+感測器描述：
+$sensorDescription
+
+通訊協定：$protocol
+
+感測器欄位：
+${fieldSummary.isEmpty ? '（無特定欄位）' : fieldSummary}
+
+請以 JSON 格式回傳，結構如下：
+{
+  "title": "硬體安裝指南",
+  "difficulty": "簡單|中等|困難",
+  "estimated_time": "約 30 分鐘",
+  "sections": [
+    {
+      "icon": "hardware",
+      "title": "所需硬體",
+      "items": ["項目 1", "項目 2"]
+    },
+    {
+      "icon": "wiring",
+      "title": "接線方式",
+      "items": ["步驟 1", "步驟 2"]
+    }
+  ],
+  "tips": ["注意事項 1", "注意事項 2"]
+}
+
+重要：
+1. 只需要「所需硬體」和「接線方式」兩個章節
+2. 每個 section 的 items 要簡潔（每項 1-2 句話）
+3. 不要使用 Markdown 格式
+4. 不要畫 ASCII 圖
+5. 使用繁體中文
+6. 如果資訊不足，請標註「請根據您的感測器型號調整」
+'''),
+      ]);
+
+      final text = response.text?.trim() ?? '';
+      // 嘗試解析 JSON
+      try {
+        final data = jsonDecode(text) as Map<String, dynamic>;
+        return data;
+      } catch (_) {
+        // 如果解析失敗，回傳預設結構
+        return {
+          'title': '硬體安裝指南',
+          'difficulty': '中等',
+          'estimated_time': '約 30 分鐘',
+          'sections': [
+            {
+              'icon': 'hardware',
+              'title': '所需硬體',
+              'items': ['樹莓派 4B', '感測器模組', '連接線材'],
+            },
+            {
+              'icon': 'wiring',
+              'title': '接線方式',
+              'items': ['請根據您的感測器型號調整接線'],
+            },
+          ],
+          'tips': ['請確認接線正確後再通電'],
+        };
+      }
+    } catch (e) {
+      debugPrint('Hardware Guide Error: $e');
+      return {
+        'title': '硬體安裝指南',
+        'difficulty': '中等',
+        'estimated_time': '約 30 分鐘',
+        'sections': [
+          {
+            'icon': 'hardware',
+            'title': '所需硬體',
+            'items': ['請稍後再試'],
+          },
+        ],
+        'tips': [],
+      };
+    }
+  }
+
   Future<String> generateSiteDescription({
     required String siteName,
     required String prompt,
