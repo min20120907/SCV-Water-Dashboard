@@ -45,6 +45,30 @@ class DeployService {
     return DeployResult.fromJson(data);
   }
 
+  /// Undeploy / unbind a sensor driver from a Raspberry Pi via SSH.
+  Future<bool> undeploy({
+    required String deviceId,
+    required String piHost,
+    int piPort = 22,
+    String piUser = 'pi',
+    String piSshKey = '',
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/undeploy'),
+      headers: {'Content-Type': 'application/json', 'X-API-Key': _apiKey},
+      body: jsonEncode({
+        'device_id': deviceId,
+        'pi_host': piHost,
+        'pi_port': piPort,
+        'pi_user': piUser,
+        'pi_ssh_key': piSshKey,
+      }),
+    );
+    if (response.statusCode != 200) return false;
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data['success'] == true;
+  }
+
   /// Scan local network for Raspberry Pi devices.
   Future<List<DiscoveredDevice>> scan() async {
     final response = await http.get(Uri.parse('$baseUrl/scan'), headers: {'X-API-Key': _apiKey});
