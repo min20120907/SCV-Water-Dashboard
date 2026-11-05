@@ -1,124 +1,82 @@
 // lib/gemini_service.dart
-import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
-/// 這是我們的客製化 AI Bot 服務。
-/// 它在啟動時會載入 "知識庫" (systemInstruction)。
+/// SCV Water AI 助理與感測器分析服務。
+/// 改接本機 FastMTP (:8088 Qwen3.8-27B Uncensored MTP)，免除外部配額與連線限制。
 class GeminiService {
-  late final GenerativeModel _model;
-  late final GenerativeModel _schemaModel;
-  final String _apiKey;
+  static const String _endpoint = 'http://127.0.0.1:8088/v1/chat/completions';
+  static const String _model = 'qwen3.8-27b-fastmtp';
 
-  GeminiService() : _apiKey = dotenv.env['GEMINI_API_KEY']!.trim() {
-    // 1. 從 .env 讀取 API 金鑰
-    final apiKey = _apiKey;
-    assert(() {
-      debugPrint("Gemini API Key length: ${apiKey.length}");
-      return true;
-    }());
+  static const String _knowledgeBase = '''
+你是一個專業的「家庭節水顧問 App 助手」。
+你的核心目標是：
+1. 監控用戶的即時和歷史用水量。
+2. 分析使用模式以識別浪費和低效率。
+3. 你的回答必須使用「繁體中文」。
 
-    // 2. 這是您的「完整版知識庫」
-    // (來自您 PDF 的 9 個情境)
-    final systemInstruction = Content.system("""
-      你是一個專業的「家庭節水顧問 App 助手」。
-      你的核心目標是：
-      1. 監控用戶的即時和歷史用水量。
-      2. 分析使用模式以識別浪費和低效率。
-      3. 你的回答必須使用「繁體中文」。
+你的分析必須基於以下 "知識庫" (來自一份台灣四口之家的文件)。
+這是所有 9 種情境的「平均每日用量 (L/天)」：
+1. 基準 (Baseline): 總計 1114.4 (馬桶: 263.9, 淋浴: 232.0, 廚房: 209.3, 洗衣: 185.6, 植物: 61.4, 其他: 162.4)
+2. 夏天 (Summer - Hot & Dry): 馬桶: 262.9, 淋浴: 278.4, 廚房: 203.9, 洗衣: 186.3, 植物: 116.4, 其他: 175.0
+3. 季風 (Monsoon - Humid): 總計 1086.9 (馬桶: 254.3, 淋浴: 229.0, 廚房: 197.1, 洗衣: 232.4, 植物: 21.6, 其他: 152.4)
+4. 乾旱限制 (Drought restrictions): 總計 980.4 (馬桶: 249.4, 淋浴: 211.0, 廚房: 191.0, 洗衣: 172.0, 植物: 6.3, 其他: 150.7)
+5. 假期客人 (Holiday guests): 總計 1384.4 (馬桶: 295.0, 淋浴: 293.7, 廚房: 280.0, 洗衣: 272.3, 植物: 51.4, 其他: 192.0)
+6. 寒冬 (Cold winter): 馬桶: 252.7, 淋浴: 148.9, 廚房: 191.6, 洗衣: 173.3, 植物: 51.1, 其他: 150.0
+7. 假期 - 全家外出 (Vacation): 總計 467.9 (馬桶: 108.9, 淋浴: 99.7, 廚房: 91.1, 洗衣: 83.4, 植物: 30.3, 其他: 54.4)
+8. 節日烹飪 (Festival cooking CNY): 總計 1305.9 (馬桶: 255.7, 淋浴: 241.3, 廚房: 363.4, 洗衣: 187.3, 植物: 52.1, 其他: 206.0)
+9. 理想目標 (Water-efficiency push): 總計 801.7 (馬桶: 197.0, 淋浴: 165.0, 廚房: 152.1, 洗衣: 139.6, 植物: 25.0, 其他: 123.0)
+''';
 
-      你的分析必須基於以下 "知識庫" (來自一份台灣四口之家的文件)。
-      這是所有 9 種情境的「平均每日用量 (L/天)」：
+  GeminiService();
 
-      1. 基準 (Baseline):
-         - 總計: 1114.4
-         - 馬桶: 263.9, 淋浴: 232.0, 廚房: 209.3, 洗衣: 185.6, 植物: 61.4, 其他: 162.4
-
-      2. 夏天 (Summer - Hot & Dry):
-         - 馬桶: 262.9, 淋浴: 278.4, 廚房: 203.9, 洗衣: 186.3, 植物: 116.4, 其他: 175.0
-
-      3. 季風 (Monsoon - Humid):
-         - 總計: 1086.9
-         - 馬桶: 254.3, 淋浴: 229.0, 廚房: 197.1, 洗衣: 232.4, 植物: 21.6, 其他: 152.4
-
-      4. 乾旱限制 (Drought restrictions):
-         - 總計: 980.4
-         - 馬桶: 249.4, 淋浴: 211.0, 廚房: 191.0, 洗衣: 172.0, 植物: 6.3, 其他: 150.7
-
-      5. 假期客人 (Holiday guests):
-         - 總計: 1384.4
-         - 馬桶: 295.0, 淋浴: 293.7, 廚房: 280.0, 洗衣: 272.3, 植物: 51.4, 其他: 192.0
-
-      6. 寒冬 (Cold winter):
-         - 馬桶: 252.7, 淋浴: 148.9, 廚房: 191.6, 洗衣: 173.3, 植物: 51.1, 其他: 150.0
-
-      7. 假期 - 全家外出 (Vacation):
-         - 總計: 467.9
-         - 馬桶: 108.9, 淋浴: 99.7, 廚房: 91.1, 洗衣: 83.4, 植物: 30.3, 其他: 54.4
-
-      8. 節日烹飪 (Festival cooking CNY):
-         - 總計: 1305.9
-         - 馬桶: 255.7, 淋浴: 241.3, 廚房: 363.4, 洗衣: 187.3, 植物: 52.1, 其他: 206.0
-
-      9. 理想目標 (Water-efficiency push):
-         - 總計: 801.7
-         - 馬桶: 197.0, 淋浴: 165.0, 廚房: 152.1, 洗衣: 139.6, 植物: 25.0, 其他: 123.0
-
-      你的任務是擔任一個 Q&A 助理。
-      用戶會提供他們的「問題」和他們的「原始用水數據」。
-      你必須使用你的 "知識庫" (上述 9 種情境) 來分析他們的 "原始用水數據"，並回答他們的 "問題"。
-      例如，如果用戶的用量接近 1300L，你應該將其與「假期客人」 或「節日烹飪」 進行比較，而不僅僅是「基準」。
-      """);
-
-    // 3. 建立 Gemini Bot (模型)
-    _model = GenerativeModel(
-      // 全部統一使用 Flash，速度更快、成本更低
-      model: 'gemini-3.1-flash-lite-preview',
-      apiKey: apiKey,
-      generationConfig: GenerationConfig(temperature: 0.5),
-
-      // *** 這裡是修正的地方 ***
-      safetySettings: [
-        SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
-        SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),
-        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.none),
-        SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.none),
-      ],
-
-      systemInstruction: systemInstruction, // <-- 注入您的「完整版知識庫」
+  Future<String> _callModel({
+    required String systemPrompt,
+    required String userPrompt,
+    double temperature = 0.2,
+    int maxTokens = 1024,
+  }) async {
+    final response = await http.post(
+      Uri.parse(_endpoint),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'model': _model,
+        'messages': [
+          if (systemPrompt.isNotEmpty) {'role': 'system', 'content': systemPrompt},
+          {'role': 'user', 'content': userPrompt},
+        ],
+        'temperature': temperature,
+        'max_tokens': maxTokens,
+      }),
     );
 
-    // 4. 規格解析專用模型 (JSON 模式)
-    _schemaModel = GenerativeModel(
-      // ListModels 顯示可用，改用 2.5-flash 以避開 2.0 配額限制
-      model: 'gemini-3.1-flash-lite-preview',
-      apiKey: _apiKey,
-      generationConfig: GenerationConfig(responseMimeType: 'application/json'),
-      systemInstruction: Content.system("""
-        You are an IoT Sensor Expert. Convert the user's sensor description or manual into a JSON Schema.
-        Output MUST be a valid JSON object with this structure:
-        {
-          "type_id": "DEVICE_TYPE_NAME",
-          "fields": [
-            {
-              "key": "internal_variable_name",
-              "label": "Human Readable Label",
-              "unit": "Unit (e.g. mL/s, mg/L)",
-              "data_type": "double or int",
-              "min_threshold": null,
-              "max_threshold": null
-            }
-          ]
-        }
-        If the user mentions 'SCV Emulator', always include keys: 'kitchen_flow', 'shower_flow', 'bathtub_flow', 'toilet_flow'.
-      """),
-    );
+    if (response.statusCode != 200) {
+      throw Exception('LLM :8088 error: ${response.statusCode} ${response.body}');
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    final choices = data['choices'] as List?;
+    if (choices == null || choices.isEmpty) return '';
+    var text = (choices.first['message']?['content'] as String?)?.trim() ?? '';
+
+    // 去除 <think> 標籤與 markdown 程式碼區塊
+    text = text.replaceAll(RegExp(r'<think>[\s\S]*?</think>'), '').trim();
+    final jsonMarker = String.fromCharCodes([96, 96, 96, 106, 115, 111, 110]);
+    final codeMarker = String.fromCharCodes([96, 96, 96]);
+    if (text.startsWith(jsonMarker)) {
+      text = text.substring(jsonMarker.length);
+      if (text.endsWith(codeMarker)) text = text.substring(0, text.length - codeMarker.length);
+    } else if (text.startsWith(codeMarker)) {
+      text = text.substring(codeMarker.length);
+      if (text.endsWith(codeMarker)) text = text.substring(0, text.length - codeMarker.length);
+    }
+    return text.trim();
   }
 
   Future<String> getOptimizationTips(String dataContext) async {
     try {
-      final prompt = '''
+      const prompt = '''
 請根據提供的用水數據，給出 2-3 條「具體、專業且可執行」的節水優化建議。
 需求：
 1. 必須針對數據中顯示的異常（如：某項流量過高）給出建議。
@@ -143,11 +101,14 @@ class GeminiService {
 
 範例：
 {"emoji": "🚿", "icon_name": "shower", "description": "浴室淋浴"}
-
-請只回傳 JSON，不要任何其他文字。
+請只回傳純 JSON，不要任何解釋或多餘文字。
 ''';
-      final response = await _model.generateContent([Content.text(prompt)]);
-      final text = response.text?.trim() ?? '';
+      final text = await _callModel(
+        systemPrompt: 'You are a UI icon expert. Return pure JSON only.',
+        userPrompt: prompt,
+        temperature: 0.1,
+        maxTokens: 256,
+      );
       final Map<String, dynamic> data = jsonDecode(text);
       return data.map((key, value) => MapEntry(key, value.toString()));
     } catch (_) {
@@ -159,54 +120,63 @@ class GeminiService {
     }
   }
 
-  /// 呼叫 Gemini AI 來分析數據並回答問題
   Future<String> ask(String query, String dataContext) async {
     try {
-      // 建立聊天 session
-      final chat = _model.startChat();
+      final userText = '''
+這是我的問題:
+"$query"
 
-      // 將問題和數據一起發送給 AI
-      final response = await chat.sendMessage(
-        Content.text("""
-        這是我的問題:
-        "$query"
-
-        這是我近期的原始用水數據 (格式: Timestamp, Location, Amount (mL)):
-        $dataContext
-        """),
+這是我近期的原始用水數據 (格式: Timestamp, Location, Amount (mL)):
+$dataContext
+''';
+      final text = await _callModel(
+        systemPrompt: _knowledgeBase,
+        userPrompt: userText,
+        temperature: 0.5,
+        maxTokens: 1024,
       );
-
-      // 返回 AI 的文字回答
-      final text = response.text;
-      if (text == null) {
-        return "AI 沒有返回文字回應，請重試。";
-      }
-      return text;
+      return text.isNotEmpty ? text : "AI 沒有返回文字回應，請重試。";
     } catch (e) {
-      // 處理 API 錯誤
-      debugPrint("Gemini API Error: $e");
+      debugPrint("FastMTP API Error: $e");
       return "AI 助理連線失敗: $e";
     }
   }
 
   Future<String> identifySensorSchema(String manualText) async {
     try {
-      final response = await _schemaModel.generateContent([
-        Content.text("Sensor Description:\n$manualText"),
-      ]);
-      return response.text ?? "{}";
+      const sysPrompt = '''
+You are an IoT Sensor Expert. Convert the user's sensor description or manual into a JSON Schema.
+Output MUST be a valid JSON object only with this structure:
+{
+  "type_id": "DEVICE_TYPE_NAME",
+  "fields": [
+    {
+      "key": "internal_variable_name",
+      "label": "Human Readable Label",
+      "unit": "Unit (e.g. mL/s, mg/L)",
+      "data_type": "double or int",
+      "min_threshold": null,
+      "max_threshold": null
+    }
+  ]
+}
+If the user mentions 'SCV Emulator', always include keys: 'kitchen_flow', 'shower_flow', 'bathtub_flow', 'toilet_flow'.
+Return ONLY valid JSON. No conversational text.
+''';
+      final text = await _callModel(
+        systemPrompt: sysPrompt,
+        userPrompt: 'Sensor Description:\n$manualText',
+        temperature: 0.1,
+        maxTokens: 512,
+      );
+      return text.isNotEmpty ? text : "{}";
     } catch (e) {
       final errorText = e.toString();
       debugPrint("Schema Generation Error: $errorText");
-      if (errorText.contains("limit: 0")) {
-        return '{"error": "目前模型配額為 0，請稍後再試或更換 API Key 專案。"}';
-      }
       return '{"error": "$errorText"}';
     }
   }
 
-  /// Generate a hardware installation guide for connecting a sensor to Raspberry Pi.
-  /// Returns a structured guide with sections for UI rendering.
   Future<Map<String, dynamic>> generateHardwareGuide({
     required String sensorDescription,
     required String protocol,
@@ -223,8 +193,7 @@ class GeminiService {
           })
           .join('\n');
 
-      final response = await _model.generateContent([
-        Content.text('''
+      final userPrompt = '''
 你是一位 IoT 硬體安裝工程師。請根據以下感測器規格，產生一份「繁體中文」的樹莓派安裝指南。
 
 感測器描述：
@@ -242,8 +211,7 @@ ${fieldSummary.isEmpty ? '（無特定欄位）' : fieldSummary}
   "estimated_time": "約 30 分鐘",
   "sections": [
     {
-      "icon": "hardware",
-      "title": "所需硬體",
+      "icon": "hardware",      "title": "所需硬體",
       "items": ["項目 1", "項目 2"]
     },
     {
@@ -258,39 +226,19 @@ ${fieldSummary.isEmpty ? '（無特定欄位）' : fieldSummary}
 重要：
 1. 只需要「所需硬體」和「接線方式」兩個章節
 2. 每個 section 的 items 要簡潔（每項 1-2 句話）
-3. 不要使用 Markdown 格式
-4. 不要畫 ASCII 圖
-5. 使用繁體中文
-6. 如果資訊不足，請標註「請根據您的感測器型號調整」
-'''),
-      ]);
+3. 不要使用 Markdown 格式，不要畫 ASCII 圖
+4. 請只回傳純 JSON
+''';
 
-      final text = response.text?.trim() ?? '';
-      // 嘗試解析 JSON
-      try {
-        final data = jsonDecode(text) as Map<String, dynamic>;
-        return data;
-      } catch (_) {
-        // 如果解析失敗，回傳預設結構
-        return {
-          'title': '硬體安裝指南',
-          'difficulty': '中等',
-          'estimated_time': '約 30 分鐘',
-          'sections': [
-            {
-              'icon': 'hardware',
-              'title': '所需硬體',
-              'items': ['樹莓派 4B', '感測器模組', '連接線材'],
-            },
-            {
-              'icon': 'wiring',
-              'title': '接線方式',
-              'items': ['請根據您的感測器型號調整接線'],
-            },
-          ],
-          'tips': ['請確認接線正確後再通電'],
-        };
-      }
+      final text = await _callModel(
+        systemPrompt: 'You are an IoT hardware engineer. Output valid JSON only.',
+        userPrompt: userPrompt,
+        temperature: 0.2,
+        maxTokens: 1024,
+      );
+
+      final data = jsonDecode(text) as Map<String, dynamic>;
+      return data;
     } catch (e) {
       debugPrint('Hardware Guide Error: $e');
       return {
@@ -301,10 +249,15 @@ ${fieldSummary.isEmpty ? '（無特定欄位）' : fieldSummary}
           {
             'icon': 'hardware',
             'title': '所需硬體',
-            'items': ['請稍後再試'],
+            'items': ['樹莓派 4B / Zero', '感測器模組', '杜邦線'],
+          },
+          {
+            'icon': 'wiring',
+            'title': '接線方式',
+            'items': ['請依感測器腳位 (VCC/GND/GPIO) 對照連接'],
           },
         ],
-        'tips': [],
+        'tips': ['請確認接線正確後再通電'],
       };
     }
   }
@@ -314,16 +267,20 @@ ${fieldSummary.isEmpty ? '（無特定欄位）' : fieldSummary}
     required String prompt,
   }) async {
     try {
-      final response = await _model.generateContent([
-        Content.text('''
+      final userPrompt = '''
 請用繁體中文，為以下場域產生 2-4 句精簡敘述，內容包含場域用途、常見用水情境、建議監控重點。
 
 場域名稱: $siteName
 使用者補充: $prompt
-'''),
-      ]);
-      return response.text?.trim().isNotEmpty == true
-          ? response.text!.trim()
+''';
+      final text = await _callModel(
+        systemPrompt: 'You are an environmental IoT consultant. Output Traditional Chinese only.',
+        userPrompt: userPrompt,
+        temperature: 0.4,
+        maxTokens: 256,
+      );
+      return text.isNotEmpty
+          ? text
           : '此場域主要用於日常活動，建議優先監控主要用水設備的尖峰時段與異常流量。';
     } catch (e) {
       debugPrint("Site Description Error: $e");
