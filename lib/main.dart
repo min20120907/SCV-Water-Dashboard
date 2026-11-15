@@ -318,7 +318,17 @@ int _toEpochMillis(dynamic value) {
   if (value is Timestamp) return value.millisecondsSinceEpoch;
   if (value is DateTime) return value.millisecondsSinceEpoch;
   if (value is num) return value.toInt();
+  if (value is String) return DateTime.tryParse(value)?.millisecondsSinceEpoch ?? 0;
   return 0;
+}
+
+/// 檢查數據是否在新鮮度門檻內 (預設 20 秒)。
+/// 沒即時數據的感測器一律視為無數據 (歸零)，不保留過期舊值。
+bool _isReadingFresh(dynamic value, {int thresholdMs = 20000}) {
+  final millis = _toEpochMillis(value);
+  if (millis <= 0) return false;
+  final now = DateTime.now().millisecondsSinceEpoch;
+  return (now - millis).abs() <= thresholdMs;
 }
 
 String _formatNowLabel(DateTime now) {
@@ -808,16 +818,23 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
         .snapshots()
         .listen((snap) {
           if (snap.docs.isNotEmpty) {
-            _pendingData = snap.docs.first.data();
+            final data = snap.docs.first.data();
+            _pendingData = _isReadingFresh(data['timestamp']) ? data : const {};
+          } else {
+            _pendingData = const {};
           }
         });
 
-    // Throttle UI updates to every 2 seconds
+    // Throttle UI updates to every 2 seconds & zero-out stale data
     _uiUpdateTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      if (mounted && _pendingData.isNotEmpty) {
-        setState(() {
-          _latestData = _pendingData;
-        });
+      if (mounted) {
+        final isFresh = _isReadingFresh(_pendingData['timestamp']);
+        final targetData = isFresh ? _pendingData : const <String, dynamic>{};
+        if (_latestData != targetData) {
+          setState(() {
+            _latestData = targetData;
+          });
+        }
       }
     });
   }
@@ -849,12 +866,26 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
     final fields = (widget.schema['fields'] as List? ?? []).whereType<Map>();
     final totalVal = _deviceTotalFlow(widget.schema, latest);
 
-    return AppCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DeviceHistoryPage(
+              deviceId: widget.deviceId,
+              schema: widget.schema,
+              place: widget.place,
+            ),
+          ),
+        );
+      },
+      child: AppCard(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Column(
@@ -908,89 +939,99 @@ class _DashboardGaugeCardState extends State<DashboardGaugeCard> {
               final key = f['key']?.toString() ?? '';
               final info = _iconInfoCache[key] ?? {};
               final emoji = info['emoji'] ?? '💧';
+              final unit = f['unit']?.toString() ?? '';
               final val = _toDouble(latest[key]);
               final max = _toDouble(f['max_threshold']);
               final percent = (val / (max > 0 ? max : 100)).clamp(0.0, 1.0);
               final isDanger = percent > 0.8;
 
-              return Container(
-                width: 72, // Just enough for 60 + 6*2 padding
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isDanger
-                      ? const Color(0xFFFFF2F2)
-                      : const Color(0xFFF7F9FF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
+              return Semantics(
+                label: "${f['label'] ?? key}: ${val.toStringAsFixed(1)} $unit",
+                child: Container(
+                  width: 76,
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  decoration: BoxDecoration(
                     color: isDanger
-                        ? _scvDanger.withValues(alpha: 0.4)
-                        : _scvBorder,
+                        ? const Color(0xFFFFF2F2)
+                        : const Color(0xFFF7F9FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDanger
+                          ? _scvDanger.withValues(alpha: 0.4)
+                          : _scvBorder,
+                    ),
                   ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 60,
-                      height: 60,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CircularProgressIndicator(
-                            value: percent,
-                            strokeWidth: 6,
-                            strokeCap: StrokeCap.round,
-                            backgroundColor: Colors.white,
-                            valueColor: AlwaysStoppedAnimation(
-                              isDanger ? _scvDanger : _scvPrimary,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CircularProgressIndicator(
+                              value: percent,
+                              strokeWidth: 6,
+                              strokeCap: StrokeCap.round,
+                              backgroundColor: Colors.white,
+                              valueColor: AlwaysStoppedAnimation(
+                                isDanger ? _scvDanger : _scvPrimary,
+                              ),
                             ),
-                          ),
-                          Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  val.toStringAsFixed(0),
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w900,
-                                    color: isDanger
-                                        ? _scvDanger
-                                        : const Color(0xFF1A1A1A),
-                                    letterSpacing: -1,
-                                    height: 1.0,
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    val.toStringAsFixed(unit == '°C' ? 1 : 0),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      color: isDanger
+                                          ? _scvDanger
+                                          : const Color(0xFF1A1A1A),
+                                      letterSpacing: -0.5,
+                                      height: 1.0,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  emoji,
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                              ],
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    unit.isNotEmpty ? unit : emoji,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF666666),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      info['description'] ?? f['label'] ?? key,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: isDanger ? _scvDanger : _scvText,
+                      const SizedBox(height: 6),
+                      Text(
+                        info['description'] ?? f['label'] ?? key,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: isDanger ? _scvDanger : _scvText,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             }).toList(),
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -2303,10 +2344,10 @@ class _DevicesDashboardTabState extends State<DevicesDashboardTab> {
             for (final d in sortedDocs) {
               final deviceId = d.reference.parent.parent?.id;
               if (deviceId == null) continue;
-              latestByDevice.putIfAbsent(
-                deviceId,
-                () => d.data() as Map<String, dynamic>,
-              );
+              final data = d.data() as Map<String, dynamic>;
+              if (_isReadingFresh(data['timestamp'])) {
+                latestByDevice.putIfAbsent(deviceId, () => data);
+              }
             }
 
             final enriched = devices.map((doc) {
@@ -3409,10 +3450,10 @@ class _SiteManagementTabState extends State<SiteManagementTab> {
                 for (final d in sortedReadingDocs) {
                   final deviceId = d.reference.parent.parent?.id;
                   if (deviceId == null) continue;
-                  latestByDevice.putIfAbsent(
-                    deviceId,
-                    () => d.data() as Map<String, dynamic>,
-                  );
+                  final data = d.data() as Map<String, dynamic>;
+                  if (_isReadingFresh(data['timestamp'])) {
+                    latestByDevice.putIfAbsent(deviceId, () => data);
+                  }
                 }
 
                 final rows = siteDocs.map((doc) {
@@ -4130,10 +4171,10 @@ class SiteDetailPage extends StatelessWidget {
               for (final d in sortedDocs) {
                 final deviceId = d.reference.parent.parent?.id;
                 if (deviceId == null) continue;
-                latestByDevice.putIfAbsent(
-                  deviceId,
-                  () => d.data() as Map<String, dynamic>,
-                );
+                final data = d.data() as Map<String, dynamic>;
+                if (_isReadingFresh(data['timestamp'])) {
+                  latestByDevice.putIfAbsent(deviceId, () => data);
+                }
               }
 
               final rows = siteSensorDocs.map((doc) {

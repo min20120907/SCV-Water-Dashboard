@@ -32,6 +32,9 @@ class _AddDevicePageState extends State<AddDevicePage> {
   bool _isGeneratingGuide = false;
   bool _isDeploying = false;
   bool _isScanning = false;
+  bool _isResearching = false;
+  bool _isInspectingHardware = false;
+  HardwareInspectResult? _hardwareResult;
   String? _schemaJson;
   Map<String, dynamic>? _parsedSchema;
 
@@ -368,6 +371,29 @@ class _AddDevicePageState extends State<AddDevicePage> {
     }
   }
 
+  Future<void> _inspectHardware() async {
+    setState(() => _isInspectingHardware = true);
+    try {
+      final res = await _deployService.inspectHardware(
+        host: _selectedDevice?.ip,
+      );
+      if (!mounted) return;
+      setState(() {
+        _hardwareResult = res;
+        _isInspectingHardware = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('硬體檢測完成：${res.sensors.length} 個感測器運行中')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isInspectingHardware = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('硬體檢測失敗：$e')),
+      );
+    }
+  }
+
   Future<void> _deployToPi() async {
     if (_parsedSchema == null) return;
     if (_selectedDevice == null) {
@@ -429,6 +455,79 @@ class _AddDevicePageState extends State<AddDevicePage> {
       setState(() => _isDeploying = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('部署失敗：$e')),
+      );
+    }
+  }
+
+  Future<void> _researchSensor() async {
+    final model = _manualController.text.trim().isEmpty
+        ? 'BH1750'
+        : _manualController.text.trim();
+    final siteId = _selectedSiteId ?? '1';
+    setState(() => _isResearching = true);
+
+    try {
+      final result = await _deployService.research(
+        model: model,
+        siteId: siteId,
+      );
+
+      if (!mounted) return;
+      setState(() => _isResearching = false);
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            result.verified
+                ? '研究完成：驅動已通过 Pi 自測'
+                : '研究完成：${result.mode} 模式',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(result.message),
+                if (result.fieldKeys.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Fields: ${result.fieldKeys.join(', ')}',
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  ),
+                ],
+                if (result.sources.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text('資料來源：', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...result.sources.map(
+                    (s) => Text('• $s', style: const TextStyle(fontSize: 12)),
+                  ),
+                ],
+                if (result.logsTail.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text('日誌：', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(
+                    result.logsTail,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('關閉'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isResearching = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('研究失敗：$e')),
       );
     }
   }
@@ -731,6 +830,83 @@ class _AddDevicePageState extends State<AddDevicePage> {
                         );
                       }),
                     ],
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isInspectingHardware ? null : _inspectHardware,
+                        icon: _isInspectingHardware
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.memory),
+                        label: Text(_isInspectingHardware ? '檢查中...' : '檢查硬體安裝情形 (GPIO / USB / Sensors)'),
+                      ),
+                    ),
+                    if (_hardwareResult != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blueGrey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Pi 主機: ${_hardwareResult!.host}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 16),
+                            const Text('📟 運行中 Sensors:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            if (_hardwareResult!.sensors.isEmpty)
+                              const Text('  無運行中感測器行程', style: TextStyle(fontSize: 11, color: Colors.grey))
+                            else
+                              ..._hardwareResult!.sensors.map((s) => Text('  • $s', style: const TextStyle(fontSize: 11, fontFamily: 'monospace'))),
+                            const SizedBox(height: 8),
+                            const Text('⚡ I2C 匯流排裝置:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            if (_hardwareResult!.i2c.isEmpty)
+                              const Text('  未偵測到 I2C 設備', style: TextStyle(fontSize: 11, color: Colors.grey))
+                            else
+                              ..._hardwareResult!.i2c.map((i) => Text('  • $i', style: const TextStyle(fontSize: 11, fontFamily: 'monospace'))),
+                            const SizedBox(height: 8),
+                            const Text('🔌 USB 介面裝置:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            if (_hardwareResult!.usb.isEmpty)
+                              const Text('  無 USB 設備', style: TextStyle(fontSize: 11, color: Colors.grey))
+                            else
+                              ..._hardwareResult!.usb.map((u) => Text('  • $u', style: const TextStyle(fontSize: 11, fontFamily: 'monospace'))),
+                            const SizedBox(height: 8),
+                            const Text('📌 GPIO 腳位佔用現況:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: _hardwareResult!.gpio.map((g) => Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blueGrey.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(g, style: const TextStyle(fontSize: 10, fontFamily: 'monospace')),
+                              )).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     // No SSH user / password fields. The deploy service holds a
                     // per-site key and connects as the fixed `pi` user; asking
@@ -826,6 +1002,30 @@ class _AddDevicePageState extends State<AddDevicePage> {
                       )
                     : const Icon(Icons.cloud_upload),
                 label: Text(_isDeploying ? '部署中...' : 'SSH 自動部署到樹莓派'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isResearching ? null : _researchSensor,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                ),
+                icon: _isResearching
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.science),
+                label: Text(
+                    _isResearching ? '研究中 (約2-4分鐘) ...' : '研究感測器並自動部署驅動到 Pi'),
               ),
             ),
             const SizedBox(height: 12),

@@ -128,6 +128,158 @@ class DeployService {
       jsonDecode(response.body) as Map<String, dynamic>,
     );
   }
+
+  /// RESEARCH phase: datasheet web research -> LLM driver codegen -> on-Pi
+  /// selftest gate. Slow (web + LLM + 3 selftest attempts; ~2-4 min).
+  /// success=true only if the on-Pi selftest passes; no_device with scan
+  /// evidence is an honest hardware result, not a pipeline failure.
+  Future<ResearchResult> research({
+    required String model,
+    required String siteId,
+    bool forceResearch = false,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/pipeline/research'),
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': _apiKey,
+          },
+          body: jsonEncode({
+            'model': model,
+            'site_id': siteId,
+            'force_research': forceResearch,
+          }),
+        )
+        .timeout(const Duration(minutes: 10));
+    if (response.statusCode != 200) {
+      throw Exception('Research failed: ${response.statusCode} ${response.body}');
+    }
+    return ResearchResult.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  /// Inspect currently running sensors, USB devices, I2C, and GPIO status on Pi.
+  Future<HardwareInspectResult> inspectHardware({
+    String? host,
+    int? port,
+    String? user,
+  }) async {
+    final body = <String, dynamic>{};
+    if (host != null) body['pi_host'] = host;
+    if (port != null) body['pi_port'] = port;
+    if (user != null) body['pi_user'] = user;
+
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/hardware/inspect'),
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': _apiKey,
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) {
+      throw Exception('Hardware inspection failed: ${response.statusCode} ${response.body}');
+    }
+    final raw = jsonDecode(response.body);
+    return HardwareInspectResult.fromJson(
+      raw is Map ? raw : {},
+    );
+  }
+}
+
+class HardwareInspectResult {
+  final bool success;
+  final String host;
+  final List<String> sensors;
+  final List<String> usb;
+  final List<String> i2c;
+  final List<String> gpio;
+  final String? error;
+
+  const HardwareInspectResult({
+    required this.success,
+    required this.host,
+    required this.sensors,
+    required this.usb,
+    required this.i2c,
+    required this.gpio,
+    this.error,
+  });
+
+  factory HardwareInspectResult.fromJson(Map raw) {
+    final json = Map<String, dynamic>.from(raw);
+    final sensorsList = (json['sensors'] as List? ?? [])
+        .map((s) => s is Map ? "${s['name']} (PID: ${s['pid']})" : s.toString())
+        .toList();
+    final usbList =
+        (json['usb'] as List? ?? []).map((e) => e.toString()).toList();
+    final i2cMap = json['i2c'] is Map ? (json['i2c'] as Map) : {};
+    final List<String> i2cList = [];
+    i2cMap.forEach((k, v) {
+      if (v is List && v.isNotEmpty) {
+        i2cList.add('$k: ${v.join(', ')}');
+      }
+    });
+    final gpioList =
+        (json['gpio'] as List? ?? []).map((e) => e.toString()).toList();
+
+    return HardwareInspectResult(
+      success: json['success'] == true,
+      host: json['host']?.toString() ?? '',
+      sensors: sensorsList,
+      usb: usbList,
+      i2c: i2cList,
+      gpio: gpioList,
+      error: json['error']?.toString(),
+    );
+  }
+}
+
+class ResearchResult {
+  final bool success;
+  final bool verified;
+  final String deviceId;
+  final String mode; // catalog | research
+  final String protocol;
+  final List<String> fieldKeys;
+  final List<String> sources;
+  final String message;
+  final String logsTail;
+
+  const ResearchResult({
+    required this.success,
+    required this.verified,
+    required this.deviceId,
+    required this.mode,
+    required this.protocol,
+    required this.fieldKeys,
+    required this.sources,
+    required this.message,
+    required this.logsTail,
+  });
+
+  factory ResearchResult.fromJson(Map<String, dynamic> json) {
+    return ResearchResult(
+      success: json['success'] == true,
+      verified: json['verified'] == true,
+      deviceId: json['device_id']?.toString() ?? '',
+      mode: json['mode']?.toString() ?? '',
+      protocol: json['protocol']?.toString() ?? '',
+      fieldKeys: (json['fields'] as List? ?? [])
+          .map((e) => (e as Map)['key']?.toString() ?? '')
+          .toList(),
+      sources: (json['sources'] as List? ?? [])
+          .map((e) => (e as Map)['title']?.toString() ??
+              (e['url'] as String?) ?? '')
+          .toList(),
+      message: json['message']?.toString() ?? '',
+      logsTail: json['logs_tail']?.toString() ?? '',
+    );
+  }
 }
 
 /// One rendered wiring row (sensor pin -> Pi pin).
